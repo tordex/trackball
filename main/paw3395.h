@@ -19,6 +19,7 @@ public:
     esp_err_t init(spi_host_device_t host_id, gpio_num_t ncs_pin, uint16_t dpi = 26000);
     void DPI_Config(uint16_t CPI_Num);
     bool read_motion(int16_t *dx, int16_t *dy);
+    void office_mode();
 
 private:
     void cs_high()

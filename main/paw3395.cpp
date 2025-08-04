@@ -76,6 +76,9 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, uint16_t 
     uint8_t product_id = read_register(0);
     printf("PAW3395 Product ID: 0x%02X\n", product_id);
 
+    write_register(0x5A, 0x90);
+    office_mode();
+
     return ESP_OK;
 }
 
@@ -349,4 +352,31 @@ void paw3395::DPI_Config(uint16_t CPI_Num)
     write_register(SET_RESOLUTION, 0x01);
     cs_high();
     delay_125_ns(PAW3395_TIMINGS_BEXIT);
+}
+
+void paw3395::office_mode()
+{
+    write_register(0x7F, 0x05);
+    write_register(0x51, 0x28);
+    write_register(0x53, 0x30);
+    write_register(0x61, 0x3B);
+    write_register(0x6E, 0x1F);
+    write_register(0x7F, 0x07);
+    write_register(0x42, 0x32);
+    write_register(0x43, 0x00);
+    write_register(0x7F, 0x0D);
+    write_register(0x51, 0x00);
+    write_register(0x52, 0x49);
+    write_register(0x53, 0x00);
+    write_register(0x54, 0x5B);
+    write_register(0x55, 0x00);
+    write_register(0x56, 0x64);
+    write_register(0x57, 0x02);
+    write_register(0x58, 0xA5);
+    write_register(0x7F, 0x00);
+    write_register(0x54, 0x52);
+    write_register(0x78, 0x0A);
+    write_register(0x79, 0x0F);
+    uint8_t tmp = read_register(0x40);
+    tmp = (tmp & 0xFC) | 0x02;
 }

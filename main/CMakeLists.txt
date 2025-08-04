@@ -4,6 +4,7 @@ idf_component_register(SRCS "main.cpp"
                             "hid_device_le_prf.c"
                             "ble_init.c"
                             "paw3395.cpp"
+                           
                     PRIV_REQUIRES bt nvs_flash esp_driver_gpio driver
                     INCLUDE_DIRS ".")
 
