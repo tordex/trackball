@@ -56,7 +56,7 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, uint16_t 
 
     // Configure SPI device
     spi_device_interface_config_t devcfg = {};
-        devcfg.clock_speed_hz = 10000000; // 10MHz
+        devcfg.clock_speed_hz = 5000000; // 10MHz
         devcfg.mode = 3;                  // SPI Mode 3 (CPOL=1, CPHA=1)
         devcfg.spics_io_num = -1;         // Manually control CS
         devcfg.queue_size = 7;
@@ -77,7 +77,7 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, uint16_t 
     printf("PAW3395 Product ID: 0x%02X\n", product_id);
 
     write_register(0x5A, 0x90);
-    office_mode();
+    //office_mode();
 
     return ESP_OK;
 }

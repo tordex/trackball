@@ -6,11 +6,10 @@
 #define PIN_NUM_CLK             GPIO_NUM_12
 #define PIN_NUM_CS              GPIO_NUM_10
 #define PIN_NUM_MOTION          GPIO_NUM_9
-#define PIN_NUM_LEFT_BUTTON     GPIO_NUM_15
-#define PIN_NUM_RIGHT_BUTTON    GPIO_NUM_16
-#define PIN_NUM_MIDDLE_BUTTON   GPIO_NUM_17
-#define PIN_NUM_ENCODER_A       GPIO_NUM_18
-#define PIN_NUM_ENCODER_B       GPIO_NUM_19
+#define PIN_NUM_LEFT_BUTTON     GPIO_NUM_1
+#define PIN_NUM_RIGHT_BUTTON    GPIO_NUM_2
+#define PIN_NUM_MIDDLE_BUTTON   GPIO_NUM_3
+#define PIN_NUM_BUTTON_X        GPIO_NUM_4
 
 
 #endif // __PINS__H__

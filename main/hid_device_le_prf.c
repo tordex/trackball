@@ -49,15 +49,28 @@ static const uint8_t hidReportMap[] = {
 	0x05, 0x01,        //     Usage Page (Generic Desktop)
 	0x09, 0x30,        //     Usage (X)
 	0x09, 0x31,        //     Usage (Y)
-	0x09, 0x38,        //     Usage (Wheel)
 	0x16, 0x00, 0x80,  //     Logical Minimum (-32768)
 	0x26, 0xFF, 0x7F,  //     Logical Maximum (32767)
 	0x75, 0x10,        //     Report Size (16)
-	0x95, 0x03,        //     Report Count (3)
-	0x81, 0x06,        //     Input (Data, Variable, Relative) - X, Y, Wheel coordinates
+	0x95, 0x02,        //     Report Count (2)
+	0x81, 0x06,        //     Input (Data, Variable, Relative) - X, Y coordinates
+	0x05, 0x01,        //     Usage Page (Generic Desktop)
+	0x09, 0x38,        //     Usage (Wheel) - Vertical Wheel
+	0x15, 0x81,        //     Logical Minimum (-127)
+	0x25, 0x7F,        //     Logical Maximum (127)
+	0x75, 0x08,        //     Report Size (8)
+	0x95, 0x01,        //     Report Count (1)
+	0x81, 0x06,        //     Input (Data, Variable, Relative) - Vertical Wheel
+	0x05, 0x0C,        //     Usage Page (Consumer)
+	0x0a, 0x38, 0x02,  //     Usage (AC Pan) - Horizontal Wheel
+	0x15, 0x81,        //     Logical Minimum (-127)
+	0x25, 0x7F,        //     Logical Maximum (127)
+	0x75, 0x08,        //     Report Size (8)
+	0x95, 0x01,        //     Report Count (1)
+	0x81, 0x06,        //     Input (Data, Variable, Relative) - Horizontal Wheel
 	0xC0,              //   End Collection
-	0xC0,              // End Collection
-	
+	0xC0,              // End Collection	
+
 	0x05, 0x01, // Usage Pg (Generic Desktop)
 	0x09, 0x06, // Usage (Keyboard)
 	0xA1, 0x01, // Collection: (Application)
