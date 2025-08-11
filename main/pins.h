@@ -6,10 +6,25 @@
 #define PIN_NUM_CLK             GPIO_NUM_12
 #define PIN_NUM_CS              GPIO_NUM_10
 #define PIN_NUM_MOTION          GPIO_NUM_9
-#define PIN_NUM_LEFT_BUTTON     GPIO_NUM_1
-#define PIN_NUM_RIGHT_BUTTON    GPIO_NUM_2
-#define PIN_NUM_MIDDLE_BUTTON   GPIO_NUM_3
-#define PIN_NUM_BUTTON_X        GPIO_NUM_4
 
+enum buttons_ids_t
+{
+    BTN_ID_LEFT1,
+    BTN_ID_LEFT2,
+    BTN_ID_RIGHT1,
+    BTN_ID_RIGHT2,
+    BTN_ID_KEY,
+    BTN_ID_ENCODER,
+    BTN_ID_MAX
+};
+
+enum button_function_t
+{
+    BTN_FNC_NONE,
+    BTN_FNC_LEFT,
+    BTN_FNC_RIGHT,
+    BTN_FNC_MIDDLE,
+    BTN_FNC_LOCK,
+};
 
 #endif // __PINS__H__
