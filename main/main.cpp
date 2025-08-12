@@ -52,6 +52,8 @@ static void paw3395_task(void* pvParameters)
     button_state_t lock_state = button_state_t::released;
     int8_t wheel = 0;
     int8_t ac_pan = 0;
+    bool lock_active = false;
+    uint8_t lock_buttons = 0;
     vTaskDelay(pdMS_TO_TICKS(100));
 	while (1)
 	{
@@ -108,6 +110,15 @@ static void paw3395_task(void* pvParameters)
                         lock_state = state;
                         wheel_buffer = 0;
                         ac_pan_buffer = 0;
+                    }, [&lock_active, &lock_buttons, buttons, &send_report]() {
+                        lock_active = !lock_active;
+                        if(lock_active)
+                        {
+                            lock_buttons = buttons;
+                        } else
+                        {
+                            send_report = true;
+                        }
                     });
                     break;
                 case BTN_FNC_NONE:
@@ -117,7 +128,7 @@ static void paw3395_task(void* pvParameters)
 
         if(send_report)
         {
-            if(lock_state == button_state_t::pressed)
+            if(lock_state == button_state_t::pressed || (lock_active && lock_buttons == 0))
             {
                 send_report = false;
                 wheel_buffer += dy;
@@ -150,7 +161,7 @@ static void paw3395_task(void* pvParameters)
             }
             if(send_report)
             {
-                esp_hidd_send_mouse_value(hid_conn_id, buttons, -dx, dy, wheel, ac_pan);
+                esp_hidd_send_mouse_value(hid_conn_id, lock_active ? lock_buttons : buttons, -dx, dy, wheel, ac_pan);
             }
         }
         vTaskDelay(pdMS_TO_TICKS(10));
