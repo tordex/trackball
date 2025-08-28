@@ -69,7 +69,7 @@ static const uint8_t hidReportMap[] = {
 	0x95, 0x01,        //     Report Count (1)
 	0x81, 0x06,        //     Input (Data, Variable, Relative) - Horizontal Wheel
 	0xC0,              //   End Collection
-	0xC0,              // End Collection	
+	0xC0,              // End Collection
 
 	0x05, 0x01, // Usage Pg (Generic Desktop)
 	0x09, 0x06, // Usage (Keyboard)
@@ -219,7 +219,7 @@ struct gatts_profile_inst
 hidd_le_env_t hidd_le_env;
 
 // HID report map length
-uint8_t hidReportMapLen							  = sizeof(hidReportMap);
+uint8_t hidReportMapLen							  = (uint8_t) sizeof(hidReportMap);
 uint8_t hidProtocolMode							  = HID_PROTOCOL_MODE_REPORT;
 
 // HID report mapping table
@@ -528,7 +528,6 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp
 	{
 	case ESP_GATTS_REG_EVT:
 		{
-			esp_ble_gap_config_local_icon(ESP_BLE_APPEARANCE_HID_MOUSE);
 			esp_hidd_cb_param_t hidd_param;
 			hidd_param.init_finish.state = param->reg.status;
 			if(param->reg.app_id == HIDD_APP_ID)

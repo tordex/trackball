@@ -20,6 +20,7 @@
 #include "pins.h"
 #include <freertos/queue.h>
 #include "button.h"
+#include "esp_led.h"
 
 extern uint16_t hid_conn_id;
 extern bool sec_conn;
@@ -42,6 +43,15 @@ static button g_buttons[] =
     {BTN_ID_ENCODER,    GPIO_NUM_6, BTN_FNC_MIDDLE    },
 };
 
+const led_color COLOR_OFF      = { 0,   0,   0   };
+const led_color COLOR_RED      = { 255, 0,   0   };
+const led_color COLOR_GREEN    = { 0,   255, 0   };
+const led_color COLOR_BLUE     = { 0,   0,   255 };
+const led_color COLOR_YELLOW   = { 255, 255, 0   };
+const led_color COLOR_CYAN     = { 0,   255, 255 };
+const led_color COLOR_MAGENTA  = { 255, 0,   255 };
+const led_color COLOR_WHITE    = { 255, 255, 255 };
+
 static void paw3395_task(void* pvParameters)
 {
 	int16_t dx, dy;
@@ -54,9 +64,14 @@ static void paw3395_task(void* pvParameters)
     int8_t ac_pan = 0;
     bool lock_active = false;
     uint8_t lock_buttons = 0;
+    esp_led led(GPIO_NUM_21, 4000000); // WS2812 on GPIO21 with 4KHz RMT clock
+    led.set_color(COLOR_BLUE); // Blue
     vTaskDelay(pdMS_TO_TICKS(100));
+    led_color next_color;
 	while (1)
 	{
+        next_color = sec_conn ? COLOR_GREEN : COLOR_BLUE;
+
         send_report = false;
         wheel = 0;
         ac_pan = 0;
@@ -126,6 +141,11 @@ static void paw3395_task(void* pvParameters)
             }
         }
 
+        if(lock_state == button_state_t::pressed || lock_active)
+        {
+            next_color = COLOR_CYAN;
+        }
+
         if(send_report)
         {
             if(lock_state == button_state_t::pressed || (lock_active && lock_buttons == 0))
@@ -164,6 +184,7 @@ static void paw3395_task(void* pvParameters)
                 esp_hidd_send_mouse_value(hid_conn_id, lock_active ? lock_buttons : buttons, -dx, dy, wheel, ac_pan);
             }
         }
+        led.set_color(next_color);
         vTaskDelay(pdMS_TO_TICKS(10));
 	}
 
