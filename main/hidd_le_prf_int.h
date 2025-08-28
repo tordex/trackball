@@ -33,7 +33,7 @@
 #define HID_MAX_APPS                 1
 
 // Number of HID reports defined in the service
-#define HID_NUM_REPORTS          9
+#define HID_NUM_REPORTS          6
 
 // HID Report IDs for the service
 #define HID_RPT_ID_MOUSE_IN      1   // Mouse input report ID
@@ -130,10 +130,6 @@ enum {
     HIDD_LE_IDX_REPORT_KEY_IN_VAL,
     HIDD_LE_IDX_REPORT_KEY_IN_CCC,
     HIDD_LE_IDX_REPORT_KEY_IN_REP_REF,
-    ///Report Led output
-    HIDD_LE_IDX_REPORT_LED_OUT_CHAR,
-    HIDD_LE_IDX_REPORT_LED_OUT_VAL,
-    HIDD_LE_IDX_REPORT_LED_OUT_REP_REF,
 
 #if (SUPPORT_REPORT_VENDOR  == true)
     /// Report Vendor
