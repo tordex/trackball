@@ -21,8 +21,6 @@ typedef enum {
     ESP_HIDD_EVENT_DEINIT_FINISH,
     ESP_HIDD_EVENT_BLE_CONNECT,
     ESP_HIDD_EVENT_BLE_DISCONNECT,
-    ESP_HIDD_EVENT_BLE_VENDOR_REPORT_WRITE_EVT,
-    ESP_HIDD_EVENT_BLE_LED_REPORT_WRITE_EVT,
 } esp_hidd_cb_event_t;
 
 /// HID config status
@@ -43,16 +41,6 @@ typedef enum {
     ESP_HIDD_DEINIT_FAILED = 0,
 } esp_hidd_deinit_state_t;
 
-#define LEFT_CONTROL_KEY_MASK        (1 << 0)
-#define LEFT_SHIFT_KEY_MASK          (1 << 1)
-#define LEFT_ALT_KEY_MASK            (1 << 2)
-#define LEFT_GUI_KEY_MASK            (1 << 3)
-#define RIGHT_CONTROL_KEY_MASK       (1 << 4)
-#define RIGHT_SHIFT_KEY_MASK         (1 << 5)
-#define RIGHT_ALT_KEY_MASK           (1 << 6)
-#define RIGHT_GUI_KEY_MASK           (1 << 7)
-
-typedef uint8_t key_mask_t;
 /**
  * @brief HIDD callback parameters union
  */
@@ -87,25 +75,6 @@ typedef union {
         esp_bd_addr_t remote_bda;                   /*!< HID Remote bluetooth device address */
     } disconnect;									/*!< HID callback param of ESP_HIDD_EVENT_DISCONNECT */
 
-    /**
-     * @brief ESP_HIDD_EVENT_BLE_VENDOR_REPORT_WRITE_EVT
-	 */
-    struct hidd_vendor_write_evt_param {
-        uint16_t conn_id;                           /*!< HID connection index */
-        uint16_t report_id;                         /*!< HID report index */
-        uint16_t length;                            /*!< data length */
-        uint8_t  *data;                             /*!< The pointer to the data */
-    } vendor_write;									/*!< HID callback param of ESP_HIDD_EVENT_BLE_VENDOR_REPORT_WRITE_EVT */
-
-    /**
-     * @brief ESP_HIDD_EVENT_BLE_LED_REPORT_WRITE_EVT
-     */
-    struct hidd_led_write_evt_param {
-        uint16_t conn_id;
-        uint8_t report_id;
-        uint8_t length;
-        uint8_t *data;
-    } led_write;
 } esp_hidd_cb_param_t;
 
 
@@ -155,10 +124,6 @@ esp_err_t esp_hidd_profile_deinit(void);
  *
  */
 uint16_t esp_hidd_get_version(void);
-
-void esp_hidd_send_consumer_value(uint16_t conn_id, uint8_t key_cmd, bool key_pressed);
-
-void esp_hidd_send_keyboard_value(uint16_t conn_id, key_mask_t special_key_mask, uint8_t *keyboard_cmd, uint8_t num_key);
 
 void esp_hidd_send_mouse_value(uint16_t conn_id, uint8_t mouse_button, int16_t mickeys_x, int16_t mickeys_y, int8_t wheel, int8_t ac_pan);
 

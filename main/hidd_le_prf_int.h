@@ -15,7 +15,6 @@
 #include "esp_gap_ble_api.h"
 #include "hid_dev.h"
 
-#define SUPPORT_REPORT_VENDOR                 false
 //HID BLE profile log tag
 #define HID_LE_PRF_TAG                        "HID_LE_PRF"
 
@@ -33,14 +32,10 @@
 #define HID_MAX_APPS                 1
 
 // Number of HID reports defined in the service
-#define HID_NUM_REPORTS          6
+#define HID_NUM_REPORTS          3
 
 // HID Report IDs for the service
-#define HID_RPT_ID_MOUSE_IN      1   // Mouse input report ID
-#define HID_RPT_ID_KEY_IN        2   // Keyboard input report ID
-#define HID_RPT_ID_CC_IN         3   //Consumer Control input report ID
-#define HID_RPT_ID_VENDOR_OUT    4   // Vendor output report ID
-#define HID_RPT_ID_LED_OUT       2  // LED output report ID
+#define HID_RPT_ID_MOUSE_IN      1  // Mouse input report ID
 #define HID_RPT_ID_FEATURE       0  // Feature report ID
 
 #define HIDD_APP_ID			0x1812//ATT_SVC_HID
@@ -61,8 +56,6 @@
 /// Length of Boot Report Char. Value Maximal Length
 #define HIDD_LE_BOOT_REPORT_MAX_LEN           (8)
 
-/// Boot KB Input Report Notification Configuration Bit Mask
-#define HIDD_LE_BOOT_KB_IN_NTF_CFG_MASK       (0x40)
 /// Boot KB Input Report Notification Configuration Bit Mask
 #define HIDD_LE_BOOT_MOUSE_IN_NTF_CFG_MASK    (0x80)
 /// Boot Report Notification Configuration Bit Mask
@@ -125,31 +118,6 @@ enum {
     HIDD_LE_IDX_REPORT_MOUSE_IN_VAL,
     HIDD_LE_IDX_REPORT_MOUSE_IN_CCC,
     HIDD_LE_IDX_REPORT_MOUSE_REP_REF,
-    //Report Key input
-    HIDD_LE_IDX_REPORT_KEY_IN_CHAR,
-    HIDD_LE_IDX_REPORT_KEY_IN_VAL,
-    HIDD_LE_IDX_REPORT_KEY_IN_CCC,
-    HIDD_LE_IDX_REPORT_KEY_IN_REP_REF,
-
-#if (SUPPORT_REPORT_VENDOR  == true)
-    /// Report Vendor
-    HIDD_LE_IDX_REPORT_VENDOR_OUT_CHAR,
-    HIDD_LE_IDX_REPORT_VENDOR_OUT_VAL,
-    HIDD_LE_IDX_REPORT_VENDOR_OUT_REP_REF,
-#endif
-    HIDD_LE_IDX_REPORT_CC_IN_CHAR,
-    HIDD_LE_IDX_REPORT_CC_IN_VAL,
-    HIDD_LE_IDX_REPORT_CC_IN_CCC,
-    HIDD_LE_IDX_REPORT_CC_IN_REP_REF,
-
-    // Boot Keyboard Input Report
-    HIDD_LE_IDX_BOOT_KB_IN_REPORT_CHAR,
-    HIDD_LE_IDX_BOOT_KB_IN_REPORT_VAL,
-    HIDD_LE_IDX_BOOT_KB_IN_REPORT_NTF_CFG,
-
-    // Boot Keyboard Output Report
-    HIDD_LE_IDX_BOOT_KB_OUT_REPORT_CHAR,
-    HIDD_LE_IDX_BOOT_KB_OUT_REPORT_VAL,
 
     // Boot Mouse Input Report
     HIDD_LE_IDX_BOOT_MOUSE_IN_REPORT_CHAR,
@@ -173,8 +141,6 @@ enum {
     HIDD_LE_REPORT_MAP_CHAR,
     HIDD_LE_REPORT_CHAR,
     HIDD_LE_PROTO_MODE_CHAR,
-    HIDD_LE_BOOT_KB_IN_REPORT_CHAR,
-    HIDD_LE_BOOT_KB_OUT_REPORT_CHAR,
     HIDD_LE_BOOT_MOUSE_IN_REPORT_CHAR,
     HIDD_LE_CHAR_MAX //= HIDD_LE_REPORT_CHAR + HIDD_LE_NB_REPORT_INST_MAX,
 };
@@ -186,8 +152,6 @@ enum {
     HIDD_LE_READ_REPORT_MAP_EVT,
     HIDD_LE_READ_REPORT_EVT,
     HIDD_LE_READ_PROTO_MODE_EVT,
-    HIDD_LE_BOOT_KB_IN_REPORT_EVT,
-    HIDD_LE_BOOT_KB_OUT_REPORT_EVT,
     HIDD_LE_BOOT_MOUSE_IN_REPORT_EVT,
 
     HID_LE_EVT_MAX
@@ -197,18 +161,15 @@ enum {
 enum {
     HIDD_LE_DESC_MASK = 0x10,
 
-    HIDD_LE_BOOT_KB_IN_REPORT_CFG     = HIDD_LE_BOOT_KB_IN_REPORT_CHAR | HIDD_LE_DESC_MASK,
     HIDD_LE_BOOT_MOUSE_IN_REPORT_CFG  = HIDD_LE_BOOT_MOUSE_IN_REPORT_CHAR | HIDD_LE_DESC_MASK,
     HIDD_LE_REPORT_CFG                = HIDD_LE_REPORT_CHAR | HIDD_LE_DESC_MASK,
 };
 
 /// Features Flag Values
 enum {
-    HIDD_LE_CFG_KEYBOARD      = 0x01,
     HIDD_LE_CFG_MOUSE         = 0x02,
     HIDD_LE_CFG_PROTO_MODE    = 0x04,
     HIDD_LE_CFG_MAP_EXT_REF   = 0x08,
-    HIDD_LE_CFG_BOOT_KB_WR    = 0x10,
     HIDD_LE_CFG_BOOT_MOUSE_WR = 0x20,
 };
 
