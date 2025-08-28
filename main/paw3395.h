@@ -20,6 +20,7 @@ public:
     void DPI_Config(uint16_t CPI_Num);
     bool read_motion(int16_t *dx, int16_t *dy);
     void office_mode();
+    void gaming_mode();
 
 private:
     void cs_high()
@@ -56,7 +57,7 @@ private:
     {
         return SPI_SendReceive(0xFF);
     }
-    
+
     void Power_up_sequence();
     void Power_Up_Initializaton_Register_Setting();
 

@@ -56,14 +56,14 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, uint16_t 
 
     // Configure SPI device
     spi_device_interface_config_t devcfg = {};
-        devcfg.clock_speed_hz = 5000000; // 10MHz
+        devcfg.clock_speed_hz = 10000000; // 10MHz
         devcfg.mode = 3;                  // SPI Mode 3 (CPOL=1, CPHA=1)
         devcfg.spics_io_num = -1;         // Manually control CS
         devcfg.queue_size = 7;
         devcfg.flags = SPI_DEVICE_NO_DUMMY;
 
     esp_err_t ret = spi_bus_add_device(host_id, &devcfg, &m_spi);
-    if (ret != ESP_OK) 
+    if (ret != ESP_OK)
     {
         printf("SPI device add failed: %d\n", ret);
         return ret;
@@ -76,8 +76,15 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, uint16_t 
     uint8_t product_id = read_register(0);
     printf("PAW3395 Product ID: 0x%02X\n", product_id);
 
-    write_register(0x5A, 0x90);
-    //office_mode();
+    // Enable RIPPLE CONTROL
+    write_register(RIPPLE_CONTROL, 0x80);
+    office_mode();
+    //gaming_mode();
+
+    // Lift cut 2mm
+    write_register(0x7F, 0xC0);
+    write_register(0x4E, 0x02);
+    write_register(0x7F, 0x00);
 
     return ESP_OK;
 }
@@ -98,7 +105,7 @@ uint8_t paw3395::SPI_SendReceive(uint8_t data)
         t.rx_buffer = &data;
 
     esp_err_t ret = spi_device_polling_transmit(m_spi, &t);
-    if (ret != ESP_OK) 
+    if (ret != ESP_OK)
     {
         printf("SPI transaction failed: %d\n", ret);
     }
@@ -379,4 +386,28 @@ void paw3395::office_mode()
     write_register(0x79, 0x0F);
     uint8_t tmp = read_register(0x40);
     tmp = (tmp & 0xFC) | 0x02;
+}
+
+void paw3395::gaming_mode()
+{
+    write_register(0x7F, 0x05);
+    write_register(0x51, 0x40);
+    write_register(0x53, 0x40);
+    write_register(0x61, 0x31);
+    write_register(0x6E, 0x0F);
+    write_register(0x7F, 0x07);
+    write_register(0x42, 0x2F);
+    write_register(0x43, 0x00);
+    write_register(0x7F, 0x0D);
+    write_register(0x51, 0x12);
+    write_register(0x52, 0xDB);
+    write_register(0x53, 0x12);
+    write_register(0x54, 0xDC);
+    write_register(0x55, 0x12);
+    write_register(0x56, 0xEA);
+    write_register(0x57, 0x15);
+    write_register(0x58, 0x2D);
+    write_register(0x7F, 0x00);
+    write_register(0x54, 0x55);
+    write_register(0x40, 0x83);
 }
