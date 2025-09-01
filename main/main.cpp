@@ -14,18 +14,22 @@
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
-#include "ble_init.h"
 #include "paw3395.h"
-#include "esp_hidd_prf_api.h"
 #include "pins.h"
 #include <freertos/queue.h>
 #include "button.h"
 #include "esp_led.h"
-
-extern uint16_t hid_conn_id;
-extern bool sec_conn;
+#include "hid_func.h"
+#include "nvs_flash.h"
 
 static paw3395 g_sensor;
+
+static const char* TAG = "MAIN";
+extern "C" void ble_init();
+
+/* for nvs_storage*/
+#define LOCAL_NAMESPACE "storage"
+nvs_handle_t Nvs_storage_handle = 0;
 
 struct buttons
 {
@@ -70,7 +74,7 @@ static void paw3395_task(void* pvParameters)
     led_color next_color;
 	while (1)
 	{
-        next_color = sec_conn ? COLOR_GREEN : COLOR_BLUE;
+        next_color = hid_get_connected() ? COLOR_GREEN : COLOR_BLUE;
 
         send_report = false;
         wheel = 0;
@@ -181,19 +185,29 @@ static void paw3395_task(void* pvParameters)
             }
             if(send_report)
             {
-                esp_hidd_send_mouse_value(hid_conn_id, lock_active ? lock_buttons : buttons, -dx, dy, wheel, ac_pan);
+                hid_mouse_send_report(lock_active ? lock_buttons : buttons, -dx, dy, wheel, ac_pan);
             }
         }
         led.set_color(next_color);
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(2));
 	}
 
 }
 
 extern "C" void app_main(void)
 {
-	esp_log_level_set(HID_DEMO_TAG, ESP_LOG_MAX);
+	esp_log_level_set("NimBLE", ESP_LOG_WARN);
+	//esp_log_level_set(HID_DEMO_TAG, ESP_LOG_MAX);
     //esp_log_level_set("BLE_HID_MOUSE", ESP_LOG_MAX);
+
+    /* Initialize NVS — it is used to store PHY calibration data and Nimble bonding data */
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+    ESP_ERROR_CHECK( nvs_open(LOCAL_NAMESPACE, NVS_READWRITE, &Nvs_storage_handle) );
 
     // Configure SPI bus
     spi_bus_config_t buscfg = {};
@@ -205,22 +219,22 @@ extern "C" void app_main(void)
         buscfg.max_transfer_sz = 32;
 
     // Initialize SPI bus
-    esp_err_t ret = spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO);
+    ret = spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO);
     if (ret != ESP_OK)
     {
         printf("SPI bus init failed: %d\n", ret);
         return;
     }
 
-    ret = g_sensor.init(SPI3_HOST, PIN_NUM_CS, 600);
+    ret = g_sensor.init(SPI3_HOST, PIN_NUM_CS, 1000);
     if(ret != ESP_OK)
     {
         printf("Sensor init failed: %d\n", ret);
         return;
     }
 
-	ret = ble_init();
-	ESP_ERROR_CHECK(ret);
+    ble_init();
+    ESP_LOGI(TAG, "BLE init ok");
 
 	xTaskCreatePinnedToCore(&paw3395_task, "paw3395_task", 4096, NULL, 5, NULL, 1);
 }

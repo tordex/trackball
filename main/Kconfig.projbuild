@@ -1,0 +1,12 @@
+menu "Example Configuration"
+
+    config BLINK_GPIO
+        int "Blink GPIO number for CAPSLOCK"
+        range 0 34
+        default 16
+        help
+            GPIO number (IOxx) to show caps lock on and off.
+            CapsLock LED does not work yet.
+            GPIOs 35-39 are input-only so cannot be used as outputs.
+
+endmenu
