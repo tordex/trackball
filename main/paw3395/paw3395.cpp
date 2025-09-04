@@ -78,7 +78,7 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, uint16_t 
 
     // Enable RIPPLE CONTROL
     write_register(RIPPLE_CONTROL, 0x80);
-    office_mode();
+    //office_mode();
     //gaming_mode();
 
     // Lift cut 2mm
