@@ -66,9 +66,9 @@ extern "C" {
 #define BLE_SVC_DIS_FIRMWARE_REVISION_DEFAULT   "0x1409"
 #define BLE_SVC_DIS_HARDWARE_REVISION_DEFAULT   "0x0001"
 #define BLE_SVC_DIS_SOFTWARE_REVISION_DEFAULT   "0x1409"
-#define BLE_SVC_DIS_MANUFACTURER_NAME_DEFAULT   "https://github.com/olegos76"
+#define BLE_SVC_DIS_MANUFACTURER_NAME_DEFAULT   "tordex"
 #define BLE_SVC_DIS_SYSTEM_ID_DEFAULT           "esp32"
-#define BLE_SVC_DIS_PNP_INFO_DEFAULT            {0x00,0x47,0x00,0xff,0xff,0xff,0xff}
+#define BLE_SVC_DIS_PNP_INFO_DEFAULT            {0x04, 0x24,0x56,0x00,0x01,0x00,0x01} // Vendor ID Source (1 byte), Vendor ID (2 bytes), Product ID (2 bytes), Product Version (2 bytes)
 
 /*
     Defines default permissions for reading characteristics. Can be
