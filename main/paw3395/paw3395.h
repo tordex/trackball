@@ -1,22 +1,31 @@
 #ifndef __PAW3395_H__
 #define __PAW3395_H__
 
+#include <cstdint>
+#include <functional>
+
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
 #include "freertos/semphr.h"
 
 class paw3395
 {
+public:
+    using OnMotionCallback_t = std::function<void(int16_t,int16_t)>;
 private:
     const char*         m_log_tag = "PAW3395";
-    spi_device_handle_t m_spi;
-    gpio_num_t          m_pin_ncs;
+    spi_device_handle_t m_spi = nullptr;
+    gpio_num_t          m_pin_ncs = GPIO_NUM_NC;
+    gpio_num_t          m_pin_motion = GPIO_NUM_NC;
+    SemaphoreHandle_t   m_motion_semaphore = nullptr;
+    TaskHandle_t        m_motion_task = nullptr;
+    OnMotionCallback_t  m_on_motion_callback = nullptr;
 
 public:
     paw3395() {}
     ~paw3395() {}
 
-    esp_err_t init(spi_host_device_t host_id, gpio_num_t ncs_pin, uint16_t dpi = 26000);
+    esp_err_t init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_t pin_motion, uint16_t dpi, const OnMotionCallback_t& on_motion);
     void DPI_Config(uint16_t CPI_Num);
     bool read_motion(int16_t *dx, int16_t *dy);
     void office_mode();
@@ -42,6 +51,9 @@ private:
     {
         esp_rom_delay_us(nus);
     }
+
+    void init_motion_pin();
+    static void motion_task(void* param);
 
     void delay_125_ns(uint8_t nns);
     uint8_t SPI_SendReceive(uint8_t data);

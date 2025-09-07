@@ -39,9 +39,18 @@ const uint8_t PAW3395_PG_FIRST = 6;
 const uint8_t PAW3395_PG_VALID = 7;
 
 
-esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, uint16_t dpi)
+esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_t pin_motion, uint16_t dpi, const OnMotionCallback_t& on_motion)
 {
     m_pin_ncs = ncs_pin;
+    m_pin_motion = pin_motion;
+    m_on_motion_callback = on_motion;
+
+    m_motion_semaphore = xSemaphoreCreateBinary();
+    if (!m_motion_semaphore)
+    {
+        ESP_LOGE(m_log_tag, "Failed to create semaphore");
+        return ESP_FAIL;
+    }
 
     // Configure NCS pin
     gpio_config_t io_conf = {};
@@ -65,7 +74,7 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, uint16_t 
     esp_err_t ret = spi_bus_add_device(host_id, &devcfg, &m_spi);
     if (ret != ESP_OK)
     {
-        printf("SPI device add failed: %d\n", ret);
+        ESP_LOGE(m_log_tag, "SPI device add failed: %d\n", ret);
         return ret;
     }
 
@@ -86,7 +95,64 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, uint16_t 
     write_register(0x4E, 0x02);
     write_register(0x7F, 0x00);
 
+    if (xTaskCreate((TaskFunction_t) motion_task, "paw3395_motion", 4096, this, 5, &m_motion_task) != pdPASS)
+    {
+        ESP_LOGE(m_log_tag, "Failed to create motion task");
+        return ESP_FAIL;
+    }
+
+    init_motion_pin();
     return ESP_OK;
+}
+
+static void IRAM_ATTR motion_isr_handler(void *arg)
+{
+    BaseType_t woken = pdFALSE;
+    auto sem = static_cast<SemaphoreHandle_t>(arg);
+    xSemaphoreGiveFromISR(sem, &woken);
+    portYIELD_FROM_ISR(woken);
+}
+
+void paw3395::init_motion_pin()
+{
+    const gpio_config_t io_conf = {
+        .pin_bit_mask = (1ULL << m_pin_motion),
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_NEGEDGE,
+    };
+    gpio_config(&io_conf);
+
+    gpio_isr_handler_add(m_pin_motion, motion_isr_handler, m_motion_semaphore);
+}
+
+void paw3395::motion_task(void* param)
+{
+    auto pThis = static_cast<paw3395*>(param);
+    while (true)
+    {
+        if(xSemaphoreTake(pThis->m_motion_semaphore, portMAX_DELAY))
+        {
+            int16_t dx = 0;
+            int16_t dy = 0;
+            int counter = 0;
+            while (counter < 5)
+            {
+                if (pThis->read_motion(&dx, &dy))
+                {
+                    if (pThis->m_on_motion_callback)
+                    {
+                        pThis->m_on_motion_callback(dx, dy);
+                    }
+                } else
+                {
+                    counter++;
+                }
+                vTaskDelay(pdMS_TO_TICKS(2));
+            }
+        }
+    }
 }
 
 void paw3395::delay_125_ns(uint8_t nns)
@@ -162,7 +228,29 @@ void paw3395::Power_up_sequence()
 
 bool paw3395::read_motion(int16_t *dx, int16_t *dy)
 {
-    uint8_t buffer[12] = {0};
+    uint8_t motion, x_l, x_h, y_l, y_h;
+
+    // Read the Motion register. This will freeze the Delta_X and Delta_Y registers until they are read.
+    motion = read_register(PAW3395_SPIREGISTER_MOTION);
+    if((motion & 0x80) != 0)
+    {
+        cs_low();
+        x_l = read_register(PAW3395_SPIREGISTER_DELTA_X_L, false);
+        x_h = read_register(PAW3395_SPIREGISTER_DELTA_X_H, false);
+        y_l = read_register(PAW3395_SPIREGISTER_DELTA_Y_L, false);
+        y_h = read_register(PAW3395_SPIREGISTER_DELTA_Y_H, false);
+        cs_high();
+
+        *dx = (int16_t)(x_l | (x_h << 8));
+        *dy = (int16_t)(y_l | (y_h << 8));
+        return *dx != 0 || *dy != 0;
+    }
+    *dx = 0;
+    *dy = 0;
+    return false;
+
+
+/*    uint8_t buffer[12] = {0};
     cs_low();
     delay_125_ns(PAW3395_TIMINGS_NCS_SCLK);
     SPI_SendReceive(PAW3395_SPIREGISTER_MotionBurst);
@@ -176,6 +264,7 @@ bool paw3395::read_motion(int16_t *dx, int16_t *dy)
     *dx = (int16_t)(buffer[2] + (buffer[3] << 8));
     *dy = (int16_t)(buffer[4] + (buffer[5] << 8));
     return *dx != 0 || *dy != 0;
+    */
 }
 
 void paw3395::Power_Up_Initializaton_Register_Setting()

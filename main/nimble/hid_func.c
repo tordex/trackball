@@ -3,6 +3,7 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include <freertos/queue.h>
 
 #include "gatt_svr.h"
 
@@ -131,6 +132,8 @@ unlock_hid_data()
 
 }
 
+extern QueueHandle_t g_app_events;
+
 /* zero all fields on new connection */
 void
 hid_clean_vars(struct ble_gap_conn_desc *desc)
@@ -164,6 +167,9 @@ hid_clean_vars(struct ble_gap_conn_desc *desc)
     My_hid_dev.conn_handle = desc->conn_handle;
     My_hid_dev.connected = true;
 
+    uint32_t event_id = 0;
+    xQueueSend(g_app_events, &event_id, portMAX_DELAY);
+
     if (!rc) {
         unlock_hid_data();
     }
@@ -173,6 +179,8 @@ void
 hid_set_disconnected()
 {
     My_hid_dev.connected = false;
+    uint32_t event_id = 0;
+    xQueueSend(g_app_events, &event_id, portMAX_DELAY);
 }
 
 bool hid_get_connected()
