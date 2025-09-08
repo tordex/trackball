@@ -169,12 +169,17 @@ static void paw3395_task(void* pvParameters)
 
     auto lock_on_click = [&lock_active, &lock_buttons, &buttons]()
     {
+        uint32_t event_id;
         lock_active = !lock_active;
         if(lock_active)
         {
             lock_buttons = buttons;
+        } else
+        {
+            event_id = 1;
+            xQueueSend(g_app_events, &event_id, portMAX_DELAY);
         }
-        uint32_t event_id = 0;
+        event_id = 0;
         xQueueSend(g_app_events, &event_id, portMAX_DELAY);
     };
 
