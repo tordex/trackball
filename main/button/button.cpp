@@ -70,8 +70,6 @@ void button::buttons_task(void*)
 
             case btn_event_t::debounce_timer:
                 {
-                    int level = gpio_get_level(btn_event.btn->m_pin);
-
                     //Stop debounce.
                     xTimerStop(btn_event.btn->m_debounce_timer, 0);
                     btn_event.btn->m_last_changed = 0;

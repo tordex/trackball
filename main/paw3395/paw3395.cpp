@@ -14,20 +14,20 @@ const uint8_t PAW3395_TIMINGS_BEXIT    = 4;   // 500ns
 const uint8_t PAW3395_SPI_WRITE = 0x80;
 
 // Register addresses
-const uint8_t PAW3395_SPIREGISTER_MOTION        = 0x02;
-const uint8_t PAW3395_SPIREGISTER_DELTA_X_L     = 0x03;
-const uint8_t PAW3395_SPIREGISTER_DELTA_X_H     = 0x04;
-const uint8_t PAW3395_SPIREGISTER_DELTA_Y_L     = 0x05;
-const uint8_t PAW3395_SPIREGISTER_DELTA_Y_H     = 0x06;
-const uint8_t PAW3395_SPIREGISTER_MotionBurst   = 0x16;
-const uint8_t PAW3395_SPIREGISTER_POWERUPRESET  = 0x3A;
-const uint8_t SET_RESOLUTION                    = 0x47;
-const uint8_t RESOLUTION_X_LOW                  = 0x48;
-const uint8_t RESOLUTION_X_HIGH                 = 0x49;
-const uint8_t RESOLUTION_Y_LOW                  = 0x4A;
-const uint8_t RESOLUTION_Y_HIGH                 = 0x4B;
-const uint8_t RIPPLE_CONTROL                    = 0x5A;
-const uint8_t MOTION_CTRL                       = 0x5C;
+const uint8_t PAW3395_REG_MOTION            = 0x02;
+const uint8_t PAW3395_REG_DELTA_X_L         = 0x03;
+const uint8_t PAW3395_REG_DELTA_X_H         = 0x04;
+const uint8_t PAW3395_REG_DELTA_Y_L         = 0x05;
+const uint8_t PAW3395_REG_DELTA_Y_H         = 0x06;
+const uint8_t PAW3395_REG_MOTION_BURST      = 0x16;
+const uint8_t PAW3395_REG_POWERUPRESET      = 0x3A;
+const uint8_t PAW3395_REG_SET_RESOLUTION    = 0x47;
+const uint8_t PAW3395_REG_RESOLUTION_X_LOW  = 0x48;
+const uint8_t PAW3395_REG_RESOLUTION_X_HIGH = 0x49;
+const uint8_t PAW3395_REG_RESOLUTION_Y_LOW  = 0x4A;
+const uint8_t PAW3395_REG_RESOLUTION_Y_HIGH = 0x4B;
+const uint8_t PAW3395_REG_RIPPLE_CONTROL    = 0x5A;
+const uint8_t PAW3395_REG_MOTION_CTRL       = 0x5C;
 
 // Register values
 const uint8_t PAW3395_POWERUPRESET_POWERON      = 0x5A;
@@ -86,16 +86,14 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_
     printf("PAW3395 Product ID: 0x%02X\n", product_id);
 
     // Enable RIPPLE CONTROL
-    write_register(RIPPLE_CONTROL, 0x80);
+    write_register(PAW3395_REG_RIPPLE_CONTROL, 0x80);
     //office_mode();
     //gaming_mode();
 
     // Lift cut 2mm
-    write_register(0x7F, 0xC0);
-    write_register(0x4E, 0x02);
-    write_register(0x7F, 0x00);
+	set_lift_cut(2);
 
-    if (xTaskCreate((TaskFunction_t) motion_task, "paw3395_motion", 4096, this, 5, &m_motion_task) != pdPASS)
+	if (xTaskCreate((TaskFunction_t) motion_task, "paw3395_motion", 4096, this, 5, &m_motion_task) != pdPASS)
     {
         ESP_LOGE(m_log_tag, "Failed to create motion task");
         return ESP_FAIL;
@@ -103,6 +101,13 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_
 
     init_motion_pin();
     return ESP_OK;
+}
+
+void paw3395::set_lift_cut(uint8_t lift_height)
+{
+	write_register(0x7F, 0xC0);
+	write_register(0x4E, lift_height);
+	write_register(0x7F, 0x00);
 }
 
 static void IRAM_ATTR motion_isr_handler(void *arg)
@@ -211,7 +216,7 @@ void paw3395::Power_up_sequence()
     cs_low();
     delay_125_ns(PAW3395_TIMINGS_NCS_SCLK);
 
-    write_register(PAW3395_SPIREGISTER_POWERUPRESET, PAW3395_POWERUPRESET_POWERON);
+    write_register(PAW3395_REG_POWERUPRESET, PAW3395_POWERUPRESET_POWERON);
     delay_ms(5);
     Power_Up_Initializaton_Register_Setting();
     cs_high();
@@ -231,14 +236,14 @@ bool paw3395::read_motion(int16_t *dx, int16_t *dy)
     uint8_t motion, x_l, x_h, y_l, y_h;
 
     // Read the Motion register. This will freeze the Delta_X and Delta_Y registers until they are read.
-    motion = read_register(PAW3395_SPIREGISTER_MOTION);
+    motion = read_register(PAW3395_REG_MOTION);
     if((motion & 0x80) != 0)
     {
         cs_low();
-        x_l = read_register(PAW3395_SPIREGISTER_DELTA_X_L, false);
-        x_h = read_register(PAW3395_SPIREGISTER_DELTA_X_H, false);
-        y_l = read_register(PAW3395_SPIREGISTER_DELTA_Y_L, false);
-        y_h = read_register(PAW3395_SPIREGISTER_DELTA_Y_H, false);
+        x_l = read_register(PAW3395_REG_DELTA_X_L, false);
+        x_h = read_register(PAW3395_REG_DELTA_X_H, false);
+        y_l = read_register(PAW3395_REG_DELTA_Y_L, false);
+        y_h = read_register(PAW3395_REG_DELTA_Y_H, false);
         cs_high();
 
         *dx = (int16_t)(x_l | (x_h << 8));
@@ -251,9 +256,18 @@ bool paw3395::read_motion(int16_t *dx, int16_t *dy)
 
 
 /*    uint8_t buffer[12] = {0};
+    *dx = (int16_t)(buffer[2] + (buffer[3] << 8));
+    *dy = (int16_t)(buffer[4] + (buffer[5] << 8));
+    return *dx != 0 || *dy != 0;
+    */
+}
+
+void paw3395::motion_burst(motion_burst_data* values)
+{
+    uint8_t* buffer = reinterpret_cast<uint8_t*>(values);
     cs_low();
     delay_125_ns(PAW3395_TIMINGS_NCS_SCLK);
-    SPI_SendReceive(PAW3395_SPIREGISTER_MotionBurst);
+    SPI_SendReceive(PAW3395_REG_MOTION_BURST);
     delay_us(PAW3395_TIMINGS_SRAD);
     for (uint8_t i = 0; i < 12; i++)
     {
@@ -261,10 +275,6 @@ bool paw3395::read_motion(int16_t *dx, int16_t *dy)
     }
     cs_high();
     delay_125_ns(PAW3395_TIMINGS_BEXIT);
-    *dx = (int16_t)(buffer[2] + (buffer[3] << 8));
-    *dy = (int16_t)(buffer[4] + (buffer[5] << 8));
-    return *dx != 0 || *dy != 0;
-    */
 }
 
 void paw3395::Power_Up_Initializaton_Register_Setting()
@@ -440,12 +450,12 @@ void paw3395::DPI_Config(uint16_t CPI_Num)
     uint8_t temp;
     cs_low();
     delay_125_ns(PAW3395_TIMINGS_NCS_SCLK);
-    write_register(MOTION_CTRL, 0x00);
+    write_register(PAW3395_REG_MOTION_CTRL, 0x00);
     temp = (uint8_t)(((CPI_Num / 50) << 8) >> 8);
-    write_register(RESOLUTION_X_LOW, temp);
+    write_register(PAW3395_REG_RESOLUTION_X_LOW, temp);
     temp = (uint8_t)((CPI_Num / 50) >> 8);
-    write_register(RESOLUTION_X_HIGH, temp);
-    write_register(SET_RESOLUTION, 0x01);
+    write_register(PAW3395_REG_RESOLUTION_X_HIGH, temp);
+    write_register(PAW3395_REG_SET_RESOLUTION, 0x01);
     cs_high();
     delay_125_ns(PAW3395_TIMINGS_BEXIT);
 }
