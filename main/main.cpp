@@ -121,7 +121,7 @@ static void paw3395_task(void* pvParameters)
         return;
     }
 
-    auto left_on_state_changed = [&buttons](button_state_t state)
+    auto left_on_state_changed = [&buttons, &lock_state, &lock_active, &lock_buttons](button_state_t state)
     {
         if(state == button_state_t::pressed)
         {
@@ -130,11 +130,14 @@ static void paw3395_task(void* pvParameters)
         {
             buttons &= ~0x1;
         }
-        uint32_t event_id = 1;
-        xQueueSend(g_app_events, &event_id, portMAX_DELAY);
+        if(lock_state != button_state_t::pressed && !(lock_active && lock_buttons == 0))
+        {
+            uint32_t event_id = 1;
+            xQueueSend(g_app_events, &event_id, portMAX_DELAY);
+        }
     };
 
-    auto right_on_state_changed = [&buttons](button_state_t state)
+    auto right_on_state_changed = [&buttons, &lock_state, &lock_active, &lock_buttons](button_state_t state)
     {
         if(state == button_state_t::pressed)
         {
@@ -143,11 +146,14 @@ static void paw3395_task(void* pvParameters)
         {
             buttons &= ~0x2;
         }
-        uint32_t event_id = 1;
-        xQueueSend(g_app_events, &event_id, portMAX_DELAY);
+        if(lock_state != button_state_t::pressed && !(lock_active && lock_buttons == 0))
+        {
+            uint32_t event_id = 1;
+            xQueueSend(g_app_events, &event_id, portMAX_DELAY);
+        }
     };
 
-    auto middle_on_state_changed = [&buttons](button_state_t state)
+    auto middle_on_state_changed = [&buttons, &lock_state, &lock_active, &lock_buttons](button_state_t state)
     {
         if(state == button_state_t::pressed)
         {
@@ -156,8 +162,11 @@ static void paw3395_task(void* pvParameters)
         {
             buttons &= ~0x4;
         }
-        uint32_t event_id = 1;
-        xQueueSend(g_app_events, &event_id, portMAX_DELAY);
+        if(lock_state != button_state_t::pressed && !(lock_active && lock_buttons == 0))
+        {
+            uint32_t event_id = 1;
+            xQueueSend(g_app_events, &event_id, portMAX_DELAY);
+        }
     };
 
     auto lock_on_state_changed = [&lock_state](button_state_t state)
