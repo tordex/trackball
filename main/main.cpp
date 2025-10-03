@@ -130,7 +130,7 @@ static void paw3395_task(void* pvParameters)
         {
             buttons &= ~0x1;
         }
-        if(lock_state != button_state_t::pressed && !(lock_active && lock_buttons == 0))
+        if(!lock_active)
         {
             uint32_t event_id = 1;
             xQueueSend(g_app_events, &event_id, portMAX_DELAY);
@@ -146,7 +146,7 @@ static void paw3395_task(void* pvParameters)
         {
             buttons &= ~0x2;
         }
-        if(lock_state != button_state_t::pressed && !(lock_active && lock_buttons == 0))
+        if(!lock_active)
         {
             uint32_t event_id = 1;
             xQueueSend(g_app_events, &event_id, portMAX_DELAY);
@@ -162,7 +162,7 @@ static void paw3395_task(void* pvParameters)
         {
             buttons &= ~0x4;
         }
-        if(lock_state != button_state_t::pressed && !(lock_active && lock_buttons == 0))
+        if(!lock_active)
         {
             uint32_t event_id = 1;
             xQueueSend(g_app_events, &event_id, portMAX_DELAY);
@@ -223,7 +223,10 @@ static void paw3395_task(void* pvParameters)
         {
             if(lock_state == button_state_t::pressed || lock_active)
             {
-                next_color = COLOR_CYAN;
+                if(lock_active)
+                    next_color = COLOR_BLUE;
+                else
+                    next_color = COLOR_CYAN;
             } else
             {
                 next_color = hid_get_connected() ? COLOR_GREEN : COLOR_BLUE;
@@ -231,7 +234,7 @@ static void paw3395_task(void* pvParameters)
 
             if(event_id == 1) // Buttons
             {
-                hid_mouse_send_report(buttons, 0, 0, 0, 0);
+                hid_mouse_send_report(lock_active ? lock_buttons : buttons, 0, 0, 0, 0);
             }
 
             led.set_color(next_color);
