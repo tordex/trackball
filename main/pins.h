@@ -7,6 +7,9 @@
 #define PIN_NUM_CS              GPIO_NUM_10
 #define PIN_NUM_MOTION          GPIO_NUM_9
 
+#define PIN_NUM_I2C_SDA         GPIO_NUM_7
+#define PIN_NUM_I2C_SCL         GPIO_NUM_8
+
 enum buttons_ids_t
 {
     BTN_ID_LEFT1,

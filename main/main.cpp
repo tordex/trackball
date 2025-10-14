@@ -21,8 +21,13 @@
 #include "esp_led.h"
 #include "hid_func.h"
 #include "nvs_flash.h"
+#include "driver/i2c_master.h"
+#include "ui.h"
+#include "battery/battery.h"
+#include "app_events.h"
 
 static paw3395 g_sensor;
+static battery g_battery(ADC_CHANNEL_3, ADC_UNIT_2);
 
 static const char* TAG = "MAIN";
 extern "C" void ble_init();
@@ -33,20 +38,19 @@ nvs_handle_t Nvs_storage_handle = 0;
 
 QueueHandle_t g_app_events = nullptr;
 
+void send_app_event(uint32_t event_id)
+{
+    if(g_app_events)
+    {
+        xQueueSend(g_app_events, &event_id, portMAX_DELAY);
+    }
+}
+
 struct buttons
 {
     button              btn;
     button_function_t   func;
 };
-
-const led_color COLOR_OFF      = { 0,   0,   0   };
-const led_color COLOR_RED      = { 255, 0,   0   };
-const led_color COLOR_GREEN    = { 0,   255, 0   };
-const led_color COLOR_BLUE     = { 0,   0,   255 };
-const led_color COLOR_YELLOW   = { 255, 255, 0   };
-const led_color COLOR_CYAN     = { 0,   255, 255 };
-const led_color COLOR_MAGENTA  = { 255, 0,   255 };
-const led_color COLOR_WHITE    = { 255, 255, 255 };
 
 static void paw3395_task(void* pvParameters)
 {
@@ -65,8 +69,28 @@ static void paw3395_task(void* pvParameters)
     button_state_t lock_state = button_state_t::released;
     bool lock_active = false;
     uint8_t lock_buttons = 0;
-    esp_led led(GPIO_NUM_21, 4000000); // WS2812 on GPIO21 with 4KHz RMT clock
-    led.set_color(COLOR_BLUE); // Blue
+
+    // Initialize I2C bus for the OLED display
+    i2c_master_bus_config_t i2c_mst_config = {};
+    i2c_mst_config.clk_source = I2C_CLK_SRC_DEFAULT;
+    i2c_mst_config.i2c_port = -1; // auto select
+    i2c_mst_config.scl_io_num = PIN_NUM_I2C_SCL;
+    i2c_mst_config.sda_io_num = PIN_NUM_I2C_SDA;
+    i2c_mst_config.glitch_ignore_cnt = 7;
+    i2c_mst_config.flags.enable_internal_pullup = true;
+    i2c_master_bus_handle_t bus_handle;
+    ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_mst_config, &bus_handle));
+
+    i2c_device_config_t dev_cfg = {};
+    dev_cfg.dev_addr_length = I2C_ADDR_BIT_LEN_7;
+    dev_cfg.device_address = 0x3C;
+    dev_cfg.scl_speed_hz = 400000;  // 400kHz
+
+    i2c_master_dev_handle_t dev_handle;
+    ESP_ERROR_CHECK(i2c_master_bus_add_device(bus_handle, &dev_cfg, &dev_handle));
+
+    trackball_ui ui;
+    ui.init(dev_handle);
 
     auto ret = g_sensor.init(SPI3_HOST, PIN_NUM_CS, PIN_NUM_MOTION, 600,
         [&lock_active, &lock_buttons, &buttons, &lock_state](int16_t dx, int16_t dy)
@@ -132,8 +156,7 @@ static void paw3395_task(void* pvParameters)
         }
         if(!lock_active)
         {
-            uint32_t event_id = 1;
-            xQueueSend(g_app_events, &event_id, portMAX_DELAY);
+            send_app_event(APP_EVENT_SEND_BUTTONS);
         }
     };
 
@@ -148,8 +171,7 @@ static void paw3395_task(void* pvParameters)
         }
         if(!lock_active)
         {
-            uint32_t event_id = 1;
-            xQueueSend(g_app_events, &event_id, portMAX_DELAY);
+            send_app_event(APP_EVENT_SEND_BUTTONS);
         }
     };
 
@@ -164,32 +186,27 @@ static void paw3395_task(void* pvParameters)
         }
         if(!lock_active)
         {
-            uint32_t event_id = 1;
-            xQueueSend(g_app_events, &event_id, portMAX_DELAY);
+            send_app_event(APP_EVENT_SEND_BUTTONS);
         }
     };
 
     auto lock_on_state_changed = [&lock_state](button_state_t state)
     {
         lock_state = state;
-        uint32_t event_id = 0;
-        xQueueSend(g_app_events, &event_id, portMAX_DELAY);
+        send_app_event(APP_EVENT_LOCK_STATE);
     };
 
     auto lock_on_click = [&lock_active, &lock_buttons, &buttons]()
     {
-        uint32_t event_id;
         lock_active = !lock_active;
         if(lock_active)
         {
             lock_buttons = buttons;
         } else
         {
-            event_id = 1;
-            xQueueSend(g_app_events, &event_id, portMAX_DELAY);
+            send_app_event(APP_EVENT_SEND_BUTTONS);
         }
-        event_id = 0;
-        xQueueSend(g_app_events, &event_id, portMAX_DELAY);
+        send_app_event(APP_EVENT_LOCK_STATE);
     };
 
     for(int i = 0; i < BTN_ID_MAX; i++)
@@ -214,30 +231,61 @@ static void paw3395_task(void* pvParameters)
         }
     }
 
+    TimerHandle_t connection_state_timer = xTimerCreate("connection_state", pdMS_TO_TICKS(1000), pdTRUE, nullptr, [](TimerHandle_t xTimer)
+    {
+        send_app_event(APP_EVENT_CONNECTION);
+    });
+    xTimerStart(connection_state_timer, 0);
+
+    g_battery.init();
+
     vTaskDelay(pdMS_TO_TICKS(100));
-    led_color next_color;
 	while (true)
 	{
         uint32_t event_id;
         if (xQueueReceive(g_app_events, &event_id, portMAX_DELAY))
         {
-            if(lock_state == button_state_t::pressed || lock_active)
+            switch (event_id)
             {
-                if(lock_active)
-                    next_color = COLOR_BLUE;
-                else
-                    next_color = COLOR_CYAN;
-            } else
-            {
-                next_color = hid_get_connected() ? COLOR_GREEN : COLOR_BLUE;
-            }
-
-            if(event_id == 1) // Buttons
-            {
+            case APP_EVENT_SEND_BUTTONS:
                 hid_mouse_send_report(lock_active ? lock_buttons : buttons, 0, 0, 0, 0);
+                break;
+            case APP_EVENT_CONNECTION:
+                {
+                    bool connected = hid_get_connected();
+                    int8_t rssi = 0;
+                    bool rssi_ok = hid_get_rssi(&rssi);
+                    ui.set_connection_state(connected, rssi, rssi_ok);
+                }
+                break;
+            case APP_EVENT_BATTERY:
+                {
+                    int bat_mV = 0;
+                    int bat_level = 0;
+                    g_battery.get_state(bat_mV, bat_level);
+                    ui.set_battery_level(bat_mV, bat_level);
+                    if(hid_battery_level_get() != (int) bat_level)
+                    {
+                        hid_battery_level_set(static_cast<uint8_t>(bat_level));
+                    }
+                }
+                break;
+            case APP_EVENT_LOCK_STATE:
+                if(lock_state == button_state_t::pressed || (lock_active && lock_buttons == 0))
+                {
+                    ui.set_ui_state(UI_STATE_SCROLL_LOCK);
+                } else if(lock_active)
+                {
+                    ui.set_locked_buttons(lock_buttons);
+                    ui.set_ui_state(UI_STATE_LOCK_BUTTONS);
+                } else
+                {
+                    ui.set_ui_state(UI_STATE_DEFAULT);
+                }
+                break;
+            default:
+                break;
             }
-
-            led.set_color(next_color);
         }
 	}
 

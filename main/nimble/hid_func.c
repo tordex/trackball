@@ -6,6 +6,7 @@
 #include <freertos/queue.h>
 
 #include "gatt_svr.h"
+#include "app_events.h"
 
 static const char *tag = "NimBLEKBD_HIDFUNC";
 
@@ -132,8 +133,6 @@ unlock_hid_data()
 
 }
 
-extern QueueHandle_t g_app_events;
-
 /* zero all fields on new connection */
 void
 hid_clean_vars(struct ble_gap_conn_desc *desc)
@@ -167,25 +166,33 @@ hid_clean_vars(struct ble_gap_conn_desc *desc)
     My_hid_dev.conn_handle = desc->conn_handle;
     My_hid_dev.connected = true;
 
-    uint32_t event_id = 0;
-    xQueueSend(g_app_events, &event_id, portMAX_DELAY);
-
     if (!rc) {
         unlock_hid_data();
     }
+
+    send_app_event(APP_EVENT_CONNECTION);
 }
 
 void
 hid_set_disconnected()
 {
     My_hid_dev.connected = false;
-    uint32_t event_id = 0;
-    xQueueSend(g_app_events, &event_id, portMAX_DELAY);
+    send_app_event(APP_EVENT_CONNECTION);
 }
 
 bool hid_get_connected()
 {
     return My_hid_dev.connected;
+}
+
+bool hid_get_rssi(int8_t *out_rssi)
+{
+    if (My_hid_dev.connected)
+    {
+        int rc = ble_gap_conn_rssi(My_hid_dev.conn_handle, out_rssi);
+        return (rc == 0);
+    }
+    return false;
 }
 
 bool
