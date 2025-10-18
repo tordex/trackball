@@ -84,7 +84,7 @@ bool ssd1306_init(ssd1306_t *p, uint16_t width, uint16_t height, i2c_master_dev_
         width>2*height?0x02:0x12,
         // display
         SET_CONTRAST,
-        0xff,
+        0x0f,
         SET_PRECHARGE,
         p->external_vcc?0x22:0xF1,
         SET_VCOM_DESEL,

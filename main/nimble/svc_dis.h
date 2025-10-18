@@ -34,57 +34,58 @@
  *
  */
 
-#define BLE_SVC_DIS_UUID16					        0x180A
-#define BLE_SVC_DIS_CHR_UUID16_SYSTEM_ID			0x2A23
-#define BLE_SVC_DIS_CHR_UUID16_MODEL_NUMBER			0x2A24
-#define BLE_SVC_DIS_CHR_UUID16_SERIAL_NUMBER		0x2A25
-#define BLE_SVC_DIS_CHR_UUID16_FIRMWARE_REVISION 	0x2A26
-#define BLE_SVC_DIS_CHR_UUID16_HARDWARE_REVISION 	0x2A27
-#define BLE_SVC_DIS_CHR_UUID16_SOFTWARE_REVISION 	0x2A28
-#define BLE_SVC_DIS_CHR_UUID16_MANUFACTURER_NAME    0x2A29
-#define BLE_SVC_DIS_CHR_UUID16_PNP_INFO             0x2A50
+#define BLE_SVC_DIS_UUID16						 0x180A
+#define BLE_SVC_DIS_CHR_UUID16_SYSTEM_ID		 0x2A23
+#define BLE_SVC_DIS_CHR_UUID16_MODEL_NUMBER		 0x2A24
+#define BLE_SVC_DIS_CHR_UUID16_SERIAL_NUMBER	 0x2A25
+#define BLE_SVC_DIS_CHR_UUID16_FIRMWARE_REVISION 0x2A26
+#define BLE_SVC_DIS_CHR_UUID16_HARDWARE_REVISION 0x2A27
+#define BLE_SVC_DIS_CHR_UUID16_SOFTWARE_REVISION 0x2A28
+#define BLE_SVC_DIS_CHR_UUID16_MANUFACTURER_NAME 0x2A29
+#define BLE_SVC_DIS_CHR_UUID16_PNP_INFO			 0x2A50
 
 /**
  * Structure holding data for the main characteristics
  */
-struct ble_svc_dis_data {
-    /**
-     * Model number.
-     * Represent the model number that is assigned by the device vendor.
-     */
-    const char *model_number;
-    /**
-     * Serial number.
-     * Represent the serial number for a particular instance of the device.
-     */
-    const char *serial_number;
-    /**
-     * Firmware revision.
-     * Represent the firmware revision for the firmware within the device.
-     */
-    const char *firmware_revision;
-    /**
-     * Hardware revision.
-     * Represent the hardware revision for the hardware within the device.
-     */
-    const char *hardware_revision;
-    /**
-     * Software revision.
-     * Represent the software revision for the software within the device.
-     */
-    const char *software_revision;
-    /**
-     * Manufacturer name.
-     * Represent the name of the manufacturer of the device.
-     */
-    const char *manufacturer_name;
-    /**
-     * System ID.
-     * Represent the System Id of the device.
-     */
-    const char *system_id;
+struct ble_svc_dis_data
+{
+	/**
+	 * Model number.
+	 * Represent the model number that is assigned by the device vendor.
+	 */
+	const char* model_number;
+	/**
+	 * Serial number.
+	 * Represent the serial number for a particular instance of the device.
+	 */
+	const char* serial_number;
+	/**
+	 * Firmware revision.
+	 * Represent the firmware revision for the firmware within the device.
+	 */
+	const char* firmware_revision;
+	/**
+	 * Hardware revision.
+	 * Represent the hardware revision for the hardware within the device.
+	 */
+	const char* hardware_revision;
+	/**
+	 * Software revision.
+	 * Represent the software revision for the software within the device.
+	 */
+	const char* software_revision;
+	/**
+	 * Manufacturer name.
+	 * Represent the name of the manufacturer of the device.
+	 */
+	const char* manufacturer_name;
+	/**
+	 * System ID.
+	 * Represent the System Id of the device.
+	 */
+	const char* system_id;
 
-    const uint8_t pnp_info[7];
+	const uint8_t pnp_info[7];
 };
 
 /**

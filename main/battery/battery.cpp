@@ -193,7 +193,7 @@ esp_err_t battery::init()
     }
 
     m_buffer_count = 0;
-    m_timer = xTimerCreate("connection_state", pdMS_TO_TICKS(1000), pdTRUE, this, battery_timer_callback);
+    m_timer = xTimerCreate("battery_state", pdMS_TO_TICKS(1000), pdTRUE, this, battery_timer_callback);
     xTimerStart(m_timer, 0);
 
     send_app_event(APP_EVENT_BATTERY);
