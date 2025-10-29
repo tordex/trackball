@@ -6,7 +6,7 @@
 #include <freertos/queue.h>
 
 #include "gatt_svr.h"
-#include "app_events.h"
+#include "hid_func.h"
 
 static const char* tag = "NimBLEKBD_HIDFUNC";
 
@@ -182,13 +182,13 @@ void hid_clean_vars(struct ble_gap_conn_desc* desc)
 		unlock_hid_data();
 	}
 
-	send_app_event(APP_EVENT_CONNECTION);
+	hid_on_connection_changed();
 }
 
 void hid_set_disconnected()
 {
 	My_hid_dev.connected = false;
-	send_app_event(APP_EVENT_CONNECTION);
+	hid_on_connection_changed();
 }
 
 bool hid_get_connected()

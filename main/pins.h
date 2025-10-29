@@ -10,24 +10,11 @@
 #define PIN_NUM_I2C_SDA GPIO_NUM_7
 #define PIN_NUM_I2C_SCL GPIO_NUM_8
 
-enum buttons_ids_t
-{
-	BTN_ID_LEFT1,
-	BTN_ID_LEFT2,
-	BTN_ID_RIGHT1,
-	BTN_ID_RIGHT2,
-	BTN_ID_KEY,
-	BTN_ID_ENCODER,
-	BTN_ID_MAX
-};
-
-enum button_function_t
-{
-	BTN_FNC_NONE,
-	BTN_FNC_LEFT,
-	BTN_FNC_RIGHT,
-	BTN_FNC_MIDDLE,
-	BTN_FNC_LOCK,
-};
+#define PIN_BTN1		GPIO_NUM_1
+#define PIN_BTN2		GPIO_NUM_2
+#define PIN_BTN3		GPIO_NUM_3
+#define PIN_BTN4		GPIO_NUM_4
+#define PIN_BTN_SCROLL	GPIO_NUM_5
+#define PIN_BTN_CFG		GPIO_NUM_6
 
 #endif // __PINS__H__

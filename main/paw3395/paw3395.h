@@ -49,11 +49,13 @@ public:
 	/// @param lift_height The lift cut height: 0 - 1mm, 1 - 2mm
 	void set_lift_cut(uint8_t lift_height);
 
-	void DPI_Config(uint16_t CPI_Num);
+	void set_dpi(uint16_t CPI_Num);
 	bool read_motion(int16_t* dx, int16_t* dy);
 	void motion_burst(motion_burst_data * values);
 	void office_mode();
 	void gaming_mode();
+	void low_power_mode();
+	void high_performance_mode();
 
 private:
 	void cs_high()

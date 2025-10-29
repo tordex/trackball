@@ -12,6 +12,6 @@ idf_component_register(SRCS "app.cpp"
                             "battery/battery.cpp"
 
                     PRIV_REQUIRES bt nvs_flash esp_driver_gpio driver esp_driver_i2c esp_adc
-                    INCLUDE_DIRS "." "paw3395" "nimble" "button" "oled" "battery")
+                    INCLUDE_DIRS "." "paw3395" "nimble" "button" "oled" "battery" "timer")
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-unused-const-variable)

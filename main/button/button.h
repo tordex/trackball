@@ -52,7 +52,7 @@ private:
 
 	static QueueHandle_t m_buttons_queue;
 public:
-	button(uint32_t id, gpio_num_t pin, uint32_t task_id, int debounce_ms = 10, int click_ms = 200);
+	button(gpio_num_t pin, int debounce_ms = 10, int click_ms = 200);
 
 	void set_cb_on_state_changed(const std::function<void(button_state_t)>& cb_state_changed)
 	{

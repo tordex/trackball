@@ -16,6 +16,7 @@ extern "C"
 	void hid_set_notify(uint16_t attr_handle, uint8_t cur_notify, uint8_t cur_indicate);
 	bool hid_set_suspend(bool need_suspend);
 	bool hid_set_report_mode(bool boot_mode);
+	void hid_on_connection_changed(); // this function must be externaly implemented
 
 	uint8_t hid_battery_level_get(void);
 

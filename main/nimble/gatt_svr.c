@@ -427,3 +427,9 @@ int gatt_svr_init(void)
 
 	return rc;
 }
+
+void gatt_svr_deinit(void)
+{
+	ble_svc_gatt_deinit();
+	ble_svc_gap_deinit();
+}

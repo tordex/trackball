@@ -17,10 +17,8 @@ static void IRAM_ATTR btn_isr_handler(void* arg)
 	btn->send_event_from_isr(btn_event_t::isr);
 }
 
-button::button(uint32_t id, gpio_num_t pin, uint32_t task_id, int debounce_ms /* = 10 */, int click_ms /* = 100 */) :
+button::button(gpio_num_t pin, int debounce_ms /* = 10 */, int click_ms /* = 100 */) :
 	m_pin(pin),
-	m_id(id),
-	m_task_id(task_id),
 	m_debounce_ms(debounce_ms),
 	m_click_ms(click_ms)
 {

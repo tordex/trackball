@@ -287,6 +287,7 @@ void bleprph_host_task(void* param)
 
 /* this declaration was taken from examples */
 void ble_store_config_init(void);
+void ble_store_config_deinit(void);
 
 void ble_init()
 {
@@ -322,4 +323,12 @@ void ble_init()
 	ble_store_config_init();
 
 	nimble_port_freertos_init(bleprph_host_task);
+}
+
+void ble_deinit()
+{
+	nimble_port_freertos_deinit();
+	ble_store_config_deinit();
+	gatt_svr_deinit();
+	nimble_port_deinit();
 }

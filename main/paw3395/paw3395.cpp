@@ -80,7 +80,7 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_
 
 	cs_high();
 	Power_up_sequence();
-	DPI_Config(dpi);
+	set_dpi(dpi);
 
 	uint8_t product_id = read_register(0);
 	printf("PAW3395 Product ID: 0x%02X\n", product_id);
@@ -447,7 +447,7 @@ void paw3395::Power_Up_Initializaton_Register_Setting()
 	write_register(0x7F, 0x00);
 }
 
-void paw3395::DPI_Config(uint16_t CPI_Num)
+void paw3395::set_dpi(uint16_t CPI_Num)
 {
 	uint8_t temp;
 	cs_low();
@@ -511,4 +511,58 @@ void paw3395::gaming_mode()
 	write_register(0x7F, 0x00);
 	write_register(0x54, 0x55);
 	write_register(0x40, 0x83);
+}
+
+void paw3395::low_power_mode()
+{
+	write_register(0x7F, 0x05);
+	write_register(0x51, 0x40);
+	write_register(0x53, 0x40);
+	write_register(0x61, 0x3B);
+	write_register(0x6E, 0x1F);
+	write_register(0x7F, 0x07);
+	write_register(0x42, 0x32);
+	write_register(0x43, 0x00);
+	write_register(0x7F, 0x0D);
+	write_register(0x51, 0x00);
+	write_register(0x52, 0x49);
+	write_register(0x53, 0x00);
+	write_register(0x54, 0x5B);
+	write_register(0x55, 0x00);
+	write_register(0x56, 0x64);
+	write_register(0x57, 0x02);
+	write_register(0x58, 0xA5);
+	write_register(0x7F, 0x00);
+	write_register(0x54, 0x54);
+	write_register(0x78, 0x01);
+	write_register(0x79, 0x9C);
+	uint8_t tmp = read_register(0x40);
+	tmp			= (tmp & 0xFC) | 0x02;
+}
+
+void paw3395::high_performance_mode()
+{
+	write_register(0x7F, 0x05);
+	write_register(0x51, 0x40);
+	write_register(0x53, 0x40);
+	write_register(0x61, 0x31);
+	write_register(0x6E, 0x0F);
+	write_register(0x7F, 0x07);
+	write_register(0x42, 0x32);
+	write_register(0x43, 0x00);
+	write_register(0x7F, 0x0D);
+	write_register(0x51, 0x00);
+	write_register(0x52, 0x49);
+	write_register(0x53, 0x00);
+	write_register(0x54, 0x5B);
+	write_register(0x55, 0x00);
+	write_register(0x56, 0x64);
+	write_register(0x57, 0x02);
+	write_register(0x58, 0xA5);
+	write_register(0x7F, 0x00);
+	write_register(0x54, 0x54);
+	write_register(0x78, 0x01);
+	write_register(0x79, 0x9C);
+	uint8_t tmp = read_register(0x40);
+	tmp			= (tmp & 0xFC) | 0x00;
 }

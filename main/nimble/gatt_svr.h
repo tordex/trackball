@@ -208,6 +208,7 @@ extern "C"
 
 	void gatt_svr_register_cb(struct ble_gatt_register_ctxt* ctxt, void* arg);
 	int	 gatt_svr_init(void);
+	void gatt_svr_deinit(void);
 
 	int hid_svr_chr_access(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt* ctxt, void* arg);
 
