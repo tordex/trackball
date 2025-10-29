@@ -180,7 +180,6 @@ void app::on_btn_cfg_clicked() {}
 
 void app::on_btn_scroll_state_changed(button_state_t state)
 {
-	printf("Scroll button state changed: %d [%d]\n", (int) state, (int) m_app_state);
 	if(state == button_state_t::pressed)
 	{
 		if(m_app_state == APP_STATE_DEFAULT)
@@ -237,7 +236,6 @@ void app::on_battery_state_changed(int voltage, int level)
 
 void app::apply_button_function(button_state_t state, button_function_t func)
 {
-	printf("Button function: %d, state: %d\n", (int) func, (int) state);
 	if(state == button_state_t::pressed)
 	{
 		switch(func)
