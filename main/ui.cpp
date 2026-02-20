@@ -2,6 +2,7 @@
 
 // Include bitmap definitions
 #include "images/images.c"
+#include <esp_private/esp_clk.h>
 
 trackball_ui::~trackball_ui()
 {
@@ -163,6 +164,11 @@ void trackball_ui::draw_ui_default()
 	char battery_str[30] = {};
 	snprintf(battery_str, sizeof(battery_str), "Battery: %.3fV", m_bat_mV / 1000.0f);
 	ssd1306_draw_string(&m_oled_data, 0, 16, 1, battery_str);
+
+	uint32_t cpu_freq_hz	  = esp_clk_cpu_freq();
+	char	 cpu_freq_str[30] = {};
+	snprintf(cpu_freq_str, sizeof(cpu_freq_str), "CPU Freq: %luMHz", cpu_freq_hz / 1000000);
+	ssd1306_draw_string(&m_oled_data, 0, 32, 1, cpu_freq_str);
 }
 
 void trackball_ui::draw_ui_scroll_lock()

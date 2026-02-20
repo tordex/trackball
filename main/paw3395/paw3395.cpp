@@ -1,5 +1,6 @@
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
+#include <esp_private/esp_clk.h>
 #include "esp_log.h"
 #include "paw3395.h"
 
@@ -162,8 +163,9 @@ void paw3395::motion_task(void* param)
 
 void paw3395::delay_125_ns(uint8_t nns)
 {
-	uint32_t cycles = (125 * nns) / (1000000000 / 240000000); // Assuming 240MHz CPU
-	uint32_t start	= esp_cpu_get_cycle_count();
+	uint32_t cpu_freq_hz = esp_clk_cpu_freq();
+	uint32_t cycles		 = (125 * nns) / (1000000000 / cpu_freq_hz);
+	uint32_t start		 = esp_cpu_get_cycle_count();
 	while(esp_cpu_get_cycle_count() - start < cycles)
 		;
 }
