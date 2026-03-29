@@ -17,17 +17,17 @@ a very large amount of time im terms of ble operations*/
 #define BATTERY_DEFAULT_LEVEL  77
 
 /* notify data buffers */
-static uint8_t
-	/* mouse: byte 0: bit 0 Button 1, bit 1 Button 2, bit 2 Button 3, bits 4 to 7 zero
-	byte 1 : X displacement, byte 2: Y displacement, byte 3: wheel    */
-	Mouse_buffer[HIDD_LE_REPORT_MOUSE_SIZE],
-	/* battery level */
-	Battery_level[] =
-		{
-			BATTERY_DEFAULT_LEVEL,
-},
-	/* Feature data - custom data for this device */
-	Feature_buffer[] = "olegos";
+
+/* mouse: byte 0: bit 0 Button 1, bit 1 Button 2, bit 2 Button 3, bits 4 to 7 zero
+byte 1 : X displacement, byte 2: Y displacement, byte 3: wheel    */
+static uint8_t Mouse_buffer[HIDD_LE_REPORT_MOUSE_SIZE];
+/* battery level */
+static uint8_t Battery_level[] = {
+	BATTERY_DEFAULT_LEVEL
+};
+/* Feature report (1 byte) maps to Resolution Multiplier field from report descriptor. */
+uint8_t resolution_multiplier = 1;
+static uint8_t Feature_buffer[]		 = {1};
 
 static struct hid_notify_data
 {
@@ -290,10 +290,13 @@ int hid_write_buffer(struct os_mbuf* buf, int handle_num)
 		unlock_hid_data();
 		if(rc == 0)
 		{
-			/*if (handle_num == HANDLE_HID_KB_OUT_REPORT) {
-				// change LEDs level when Keyboard out report received
-				//set_leds(Leds_buffer[0]);
-			}*/
+			/* Feature report mapping is Notify_data_reports index 2 in this implementation. */
+			int feature_idx = 2; /* index of feature in Notify_data_reports */
+			if(rep_idx == feature_idx)
+			{
+				resolution_multiplier = Notify_data_reports[rep_idx].buffer[0];
+				ESP_LOGI(tag, "%s: Feature report written, resolution_multiplier=%u", __FUNCTION__, resolution_multiplier);
+			}
 		}
 	} else
 	{
@@ -423,20 +426,25 @@ int hid_battery_level_set(uint8_t level)
 	return rc;
 }
 
-int hid_mouse_send_report(uint8_t mouse_button, int16_t mickeys_x, int16_t mickeys_y, int8_t wheel, int8_t ac_pan)
+int hid_mouse_send_report(uint8_t mouse_button, int16_t mickeys_x, int16_t mickeys_y, int16_t wheel, int16_t ac_pan)
 {
 	if(!hid_get_connected())
 		return 1;
 
 	if(lock_hid_data() == 0)
 	{
-		Mouse_buffer[0] = mouse_button;					// Buttons
-		Mouse_buffer[1] = (uint8_t) (mickeys_x & 0xFF); // X Low
-		Mouse_buffer[2] = (uint8_t) (mickeys_x >> 8);	// X High
-		Mouse_buffer[3] = (uint8_t) (mickeys_y & 0xFF); // Y Low
-		Mouse_buffer[4] = (uint8_t) (mickeys_y >> 8);	// Y High
-		Mouse_buffer[5] = wheel;						// Wheel
-		Mouse_buffer[6] = ac_pan;						// AC Pan
+		Mouse_buffer[0]	  = mouse_button;						 // Buttons
+		Mouse_buffer[1]	  = (uint8_t) (mickeys_x & 0xFF);		 // X Low
+		Mouse_buffer[2]	  = (uint8_t) ((mickeys_x >> 8) & 0xFF); // X High
+		Mouse_buffer[3]	  = (uint8_t) (mickeys_y & 0xFF);		 // Y Low
+		Mouse_buffer[4]	  = (uint8_t) ((mickeys_y >> 8) & 0xFF); // Y High
+
+		/* High-resolution vertical wheel (16-bit signed, little-endian) */
+		Mouse_buffer[5] = (uint8_t)(wheel & 0xFF);         // Wheel Low
+		Mouse_buffer[6] = (uint8_t)((wheel >> 8) & 0xFF);  // Wheel High
+		/* High-resolution horizontal (AC Pan) (16-bit signed, little-endian) */
+		Mouse_buffer[7] = (uint8_t)(ac_pan & 0xFF);        // AC Pan Low
+		Mouse_buffer[8] = (uint8_t)((ac_pan >> 8) & 0xFF); // AC Pan High
 
 		unlock_hid_data();
 

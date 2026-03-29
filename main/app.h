@@ -34,13 +34,14 @@ enum sensor_mode_t
 
 struct app_config
 {
-	uint8_t	 btn1_func			= BTN_FNC_LEFT;
-	uint8_t	 btn2_func			= BTN_FNC_RIGHT;
-	uint8_t	 btn3_func			= BTN_FNC_MIDDLE;
-	uint8_t	 btn4_func			= BTN_FNC_NONE;
-	uint8_t	 scroll_sensitivity = 100;
-	uint16_t dpi				= 600;
-	uint8_t	 sensor_mode		= SENSOR_MODE_HIGH_PERFORMANCE;
+	uint8_t	 btn1_func				= BTN_FNC_LEFT;
+	uint8_t	 btn2_func				= BTN_FNC_RIGHT;
+	uint8_t	 btn3_func				= BTN_FNC_MIDDLE;
+	uint8_t	 btn4_func				= BTN_FNC_NONE;
+	uint8_t	 scroll_sensitivity		= 100;
+	uint16_t dpi					= 600;
+	uint8_t	 sensor_mode			= SENSOR_MODE_HIGH_PERFORMANCE;
+	bool	 enable_high_res_scroll = true;
 };
 
 class app
@@ -90,7 +91,7 @@ private:
 	void apply_button_function(button_state_t state, button_function_t func);
 
 	void set_app_state(app_state_t state);
-	void send_report(int16_t dx = 0, int16_t dy = 0, int8_t wheel = 0, int8_t ac_pan = 0);
+	void send_report(int16_t dx = 0, int16_t dy = 0, int16_t wheel = 0, int16_t ac_pan = 0);
 
 	uint8_t get_report_buttons() const
 	{

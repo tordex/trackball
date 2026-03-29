@@ -5,6 +5,7 @@
 #include "nvs_flash.h"
 #include "driver/i2c_master.h"
 #include "pins.h"
+#include <algorithm>
 
 extern "C" void ble_init();
 extern "C" void ble_deinit();
@@ -127,6 +128,8 @@ void app::apply_config()
 	}
 }
 
+extern uint8_t resolution_multiplier;
+
 void app::sensor_motion_callback(int16_t dx, int16_t dy)
 {
 	bool		   b_send_report = false;
@@ -136,29 +139,37 @@ void app::sensor_motion_callback(int16_t dx, int16_t dy)
 	static int32_t ac_pan_buffer = 0;
 	if(m_app_state == APP_STATE_SCROLL_HOLD || m_app_state == APP_STATE_SCROLL_LOCK)
 	{
-		wheel_buffer  += dy;
-		ac_pan_buffer += dx;
-		if(wheel_buffer > m_config.scroll_sensitivity)
+		if(m_config.enable_high_res_scroll)
 		{
-			wheel		  = -1;
-			b_send_report = true;
-			wheel_buffer  = 0;
-		} else if(wheel_buffer < -m_config.scroll_sensitivity)
+			wheel		  = std::clamp(dy * 2, -32768, 32767);
+			ac_pan		  = std::clamp(dx * 2, -32768, 32767);
+			b_send_report = wheel != 0 || ac_pan != 0;
+		} else
 		{
-			wheel		  = 1;
-			b_send_report = true;
-			wheel_buffer  = 0;
-		}
-		if(ac_pan_buffer > m_config.scroll_sensitivity)
-		{
-			ac_pan		  = -1;
-			b_send_report = true;
-			ac_pan_buffer = 0;
-		} else if(ac_pan_buffer < -m_config.scroll_sensitivity)
-		{
-			ac_pan		  = 1;
-			b_send_report = true;
-			ac_pan_buffer = 0;
+			wheel_buffer  += dy;
+			ac_pan_buffer += dx;
+			if(wheel_buffer > m_config.scroll_sensitivity)
+			{
+				wheel		  = (int16_t)resolution_multiplier;
+				b_send_report = true;
+				wheel_buffer  = 0;
+			} else if(wheel_buffer < -m_config.scroll_sensitivity)
+			{
+				wheel		  = -((int16_t) resolution_multiplier);
+				b_send_report = true;
+				wheel_buffer  = 0;
+			}
+			if(ac_pan_buffer > m_config.scroll_sensitivity)
+			{
+				ac_pan		  = (int16_t)resolution_multiplier;
+				b_send_report = true;
+				ac_pan_buffer = 0;
+			} else if(ac_pan_buffer < -m_config.scroll_sensitivity)
+			{
+				ac_pan		  = -((int16_t)resolution_multiplier);
+				b_send_report = true;
+				ac_pan_buffer = 0;
+			}
 		}
 		dx = 0;
 		dy = 0;
@@ -166,7 +177,7 @@ void app::sensor_motion_callback(int16_t dx, int16_t dy)
 	{
 		wheel_buffer  = 0;
 		ac_pan_buffer = 0;
-		b_send_report = true;
+		b_send_report = dx != 0 || dy != 0;
 	}
 	if(b_send_report)
 	{
@@ -304,7 +315,7 @@ void app::set_app_state(app_state_t state)
 	}
 }
 
-void app::send_report(int16_t dx, int16_t dy, int8_t wheel, int8_t ac_pan)
+void app::send_report(int16_t dx, int16_t dy, int16_t wheel, int16_t ac_pan)
 {
 	hid_mouse_send_report(get_report_buttons(), dx, dy, wheel, ac_pan);
 }

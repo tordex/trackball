@@ -97,7 +97,7 @@ extern "C"
 
 // HID Report IDs for the service
 #define HID_RPT_ID_MOUSE_IN						1 // Mouse input report ID from report map
-#define HID_RPT_ID_FEATURE						4 // Feature report ID from report map
+#define HID_RPT_ID_FEATURE						1 // Feature report ID from report map
 
 // boot report cb_access args
 #define HID_BOOT_MOUSE_IN						8 // Mouse input report ID
@@ -125,13 +125,13 @@ extern "C"
 	(s)[1] |= ((x) & 0x03) << 4
 
 // Mouse report size
-#define HIDD_LE_REPORT_MOUSE_SIZE	   (7)
+#define HIDD_LE_REPORT_MOUSE_SIZE	   (9)
 
 // battery level data size
 #define HIDD_LE_BATTERY_LEVEL_SIZE	   (1)
 
 // feature data size
-#define HIDD_LE_REPORT_FEATURE		   (6)
+#define HIDD_LE_REPORT_FEATURE		   (1)
 
 /* HID information flags */
 #define HID_FLAGS_REMOTE_WAKE		   0x01 // RemoteWake

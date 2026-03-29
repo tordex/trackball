@@ -21,7 +21,7 @@ extern "C"
 	uint8_t hid_battery_level_get(void);
 
 	int hid_battery_level_set(uint8_t level);
-	int hid_mouse_send_report(uint8_t mouse_button, int16_t mickeys_x, int16_t mickeys_y, int8_t wheel, int8_t ac_pan);
+	int hid_mouse_send_report(uint8_t mouse_button, int16_t mickeys_x, int16_t mickeys_y, int16_t wheel, int16_t ac_pan);
 
 	int hid_write_buffer(struct os_mbuf* buf, int handle_num);
 
