@@ -182,6 +182,7 @@ void app::sensor_motion_callback(int16_t dx, int16_t dy)
 	if(b_send_report)
 	{
 		send_report(-dx, dy, wheel, ac_pan);
+		vTaskDelay(pdMS_TO_TICKS(2));
 	}
 }
 

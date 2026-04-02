@@ -154,8 +154,8 @@ void paw3395::motion_task(void* param)
 				} else
 				{
 					counter++;
+					vTaskDelay(pdMS_TO_TICKS(1));
 				}
-				vTaskDelay(pdMS_TO_TICKS(2));
 			}
 		}
 	}
@@ -258,12 +258,6 @@ bool paw3395::read_motion(int16_t* dx, int16_t* dy)
 	*dx = 0;
 	*dy = 0;
 	return false;
-
-	/*    uint8_t buffer[12] = {0};
-		*dx = (int16_t)(buffer[2] + (buffer[3] << 8));
-		*dy = (int16_t)(buffer[4] + (buffer[5] << 8));
-		return *dx != 0 || *dy != 0;
-		*/
 }
 
 void paw3395::motion_burst(motion_burst_data* values)
