@@ -23,9 +23,8 @@ void app::init()
 	m_btn_3.set_cb_on_state_changed([this](button_state_t state) {
 		apply_button_function(state, static_cast<button_function_t>(m_config.btn3_func));
 	});
-	m_btn_4.set_cb_on_state_changed([this](button_state_t state) {
-		apply_button_function(state, static_cast<button_function_t>(m_config.btn4_func));
-	});
+	m_btn_mode.set_cb_on_click([this]() { on_btn_mode_clicked(); });
+	m_btn_mode.set_cb_on_hold_down([this]() { on_btn_mode_hold_down(); });
 	m_btn_cfg.set_cb_on_state_changed([this](button_state_t state) { on_btn_cfg_state_changed(state); });
 	m_btn_cfg.set_cb_on_click([this]() { on_btn_cfg_clicked(); });
 	m_btn_scroll.set_cb_on_state_changed([this](button_state_t state) { on_btn_scroll_state_changed(state); });
@@ -141,13 +140,25 @@ void app::sensor_motion_callback(int16_t dx, int16_t dy)
 	{
 		if(m_config.enable_high_res_scroll)
 		{
-			wheel		  = std::clamp(dy * 2, -32768, 32767);
-			ac_pan		  = std::clamp(dx * 2, -32768, 32767);
+			if(m_config.scroll_mode & SCROLL_MODE_ENABLE_VSCROLL)
+			{
+				wheel = std::clamp(dy * 2, -32768, 32767);
+			}
+			if(m_config.scroll_mode & SCROLL_MODE_ENABLE_HSCROLL)
+			{
+				ac_pan = std::clamp(dx * 2, -32768, 32767);
+			}
 			b_send_report = wheel != 0 || ac_pan != 0;
 		} else
 		{
-			wheel_buffer  += dy;
-			ac_pan_buffer += dx;
+			if(m_config.scroll_mode & SCROLL_MODE_ENABLE_VSCROLL)
+			{
+				wheel_buffer += dy;
+			}
+			if(m_config.scroll_mode & SCROLL_MODE_ENABLE_HSCROLL)
+			{
+				ac_pan_buffer += dx;
+			}
 			if(wheel_buffer > m_config.scroll_sensitivity)
 			{
 				wheel		  = (int16_t)resolution_multiplier;
@@ -183,12 +194,70 @@ void app::sensor_motion_callback(int16_t dx, int16_t dy)
 	{
 		send_report(-dx, dy, wheel, ac_pan);
 		vTaskDelay(pdMS_TO_TICKS(2));
+	} else
+	{
+		vTaskDelay(pdMS_TO_TICKS(1));
 	}
 }
 
 void app::on_btn_cfg_state_changed(button_state_t state) {}
 
-void app::on_btn_cfg_clicked() {}
+void app::on_btn_cfg_clicked()
+{
+	int dpi_idx = 1;
+	for(int i = 0; i < PREDEFINED_DPI_COUNT; i++)
+	{
+		if(m_config.dpi == m_config.predefined_dpi[i])
+		{
+			dpi_idx = i;
+			break;
+		}
+	}
+	dpi_idx = (dpi_idx + 1) % PREDEFINED_DPI_COUNT;
+	m_config.dpi = m_config.predefined_dpi[dpi_idx];
+	m_sensor.set_dpi(m_config.dpi);
+	m_ui.set_dpi(m_config.dpi);
+}
+
+void app::on_btn_mode_clicked()
+{
+	const int mode_count = 3;
+	uint8_t	  modes[mode_count] = {
+		SCROLL_MODE_ENABLE_HSCROLL | SCROLL_MODE_ENABLE_VSCROLL,
+		SCROLL_MODE_ENABLE_VSCROLL,
+		SCROLL_MODE_ENABLE_HSCROLL,
+	};
+
+	int mode = 0;
+	for(int i = 0; i < mode_count; i++)
+	{
+		if(m_config.scroll_mode == modes[i])
+		{
+			mode = i;
+			break;
+		}
+	}
+	mode = (mode + 1) % mode_count;
+	m_config.scroll_mode = modes[mode];
+	uint8_t scroll_mode	 = m_config.scroll_mode;
+	if(m_config.enable_high_res_scroll)
+	{
+		scroll_mode |= SCROLL_MODE_HIGH_RES;
+	}
+	m_ui.set_scroll_mode(scroll_mode);
+}
+
+void app::on_btn_mode_hold_down()
+{
+	m_config.enable_high_res_scroll = !m_config.enable_high_res_scroll;
+
+	uint8_t scroll_mode = m_config.scroll_mode;
+	if(m_config.enable_high_res_scroll)
+	{
+		scroll_mode |= SCROLL_MODE_HIGH_RES;
+	}
+	m_ui.set_scroll_mode(scroll_mode);
+}
 
 void app::on_btn_scroll_state_changed(button_state_t state)
 {
@@ -198,6 +267,7 @@ void app::on_btn_scroll_state_changed(button_state_t state)
 		{
 			m_app_state = APP_STATE_SCROLL_HOLD;
 			m_ui.set_ui_state(UI_STATE_SCROLL_LOCK);
+			m_sensor.set_dpi(m_config.scroll_dpi);
 		}
 	} else
 	{
@@ -205,6 +275,7 @@ void app::on_btn_scroll_state_changed(button_state_t state)
 		{
 			m_app_state = APP_STATE_DEFAULT;
 			m_ui.set_ui_state(UI_STATE_DEFAULT);
+			m_sensor.set_dpi(m_config.dpi);
 		}
 	}
 }
@@ -217,6 +288,7 @@ void app::on_btn_scroll_clicked()
 		if(m_locked_buttons == 0)
 		{
 			set_app_state(APP_STATE_SCROLL_LOCK);
+			m_sensor.set_dpi(m_config.scroll_dpi);
 		} else
 		{
 			set_app_state(APP_STATE_LOCK_BUTTONS);
@@ -225,6 +297,7 @@ void app::on_btn_scroll_clicked()
 	{
 		m_buttons = 0;
 		set_app_state(APP_STATE_DEFAULT);
+		m_sensor.set_dpi(m_config.dpi);
 		send_report();
 	}
 }

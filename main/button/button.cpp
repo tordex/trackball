@@ -17,10 +17,11 @@ static void IRAM_ATTR btn_isr_handler(void* arg)
 	btn->send_event_from_isr(btn_event_t::isr);
 }
 
-button::button(gpio_num_t pin, int debounce_ms /* = 10 */, int click_ms /* = 100 */) :
+button::button(gpio_num_t pin, int debounce_ms /* = 10 */, int click_ms /* = 100 */, int hold_down_ms /* = 1000 */) :
 	m_pin(pin),
 	m_debounce_ms(debounce_ms),
-	m_click_ms(click_ms)
+	m_click_ms(click_ms),
+	m_hold_down_ms(hold_down_ms)
 {
 	gpio_config_t io_conf = {};
 	io_conf.pin_bit_mask  = (1ULL << m_pin);
@@ -42,6 +43,11 @@ button::button(gpio_num_t pin, int debounce_ms /* = 10 */, int click_ms /* = 100
 		xTimerCreate("debounce_timer", pdMS_TO_TICKS(m_debounce_ms), pdFALSE, this, [](TimerHandle_t xTimer) {
 			auto btn = static_cast<button*>(pvTimerGetTimerID(xTimer));
 			btn->send_event(btn_event_t::debounce_timer);
+		});
+	m_hold_down_timer =
+		xTimerCreate("hold_down_timer", pdMS_TO_TICKS(m_hold_down_ms), pdFALSE, this, [](TimerHandle_t xTimer) {
+			auto btn = static_cast<button*>(pvTimerGetTimerID(xTimer));
+			btn->send_event(btn_event_t::hold_down_timer);
 		});
 }
 
@@ -82,19 +88,37 @@ void button::buttons_task(void*)
 						if(btn_event.btn->m_state == button_state_t::pressed)
 						{
 							btn_event.btn->m_last_pressed = xTaskGetTickCount();
-						} else if(btn_event.btn->m_last_pressed != 0 &&
-								  (xTaskGetTickCount() - btn_event.btn->m_last_pressed) <=
-									  pdMS_TO_TICKS(btn_event.btn->m_click_ms))
-						{
-							btn_event.btn->m_last_pressed = 0;
-							if(btn_event.btn->m_cb_click)
+							if(btn_event.btn->m_cb_hold_down)
 							{
-								btn_event.btn->m_cb_click();
+								xTimerReset(btn_event.btn->m_hold_down_timer, 0);
 							}
+						} else
+						{
+							xTimerStop(btn_event.btn->m_hold_down_timer, 0);
+							if(btn_event.btn->m_last_pressed && xTaskGetTickCount() - btn_event.btn->m_last_pressed <=
+							   pdMS_TO_TICKS(btn_event.btn->m_click_ms))
+							{
+								if(!btn_event.btn->m_hold_down_triggered && btn_event.btn->m_cb_click)
+								{
+									btn_event.btn->m_cb_click();
+								}
+							}
+							btn_event.btn->m_last_pressed		 = 0;
+							btn_event.btn->m_hold_down_triggered = false;
 						}
 					}
 				}
 				break;
+			case btn_event_t::hold_down_timer:
+				{
+					// Stop hold down timer.
+					xTimerStop(btn_event.btn->m_hold_down_timer, 0);
+					if(btn_event.btn->m_cb_hold_down)
+					{
+						btn_event.btn->m_cb_hold_down();
+						btn_event.btn->m_hold_down_triggered = true;
+					}
+				}
 
 			default:
 				break;

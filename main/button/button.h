@@ -45,14 +45,18 @@ private:
 	TickType_t	  m_last_pressed = 0;
 	int			  m_debounce_ms;
 	int			  m_click_ms;
+	int			  m_hold_down_ms;
+	bool		  m_hold_down_triggered = false;
 	TimerHandle_t m_debounce_timer = nullptr;
+	TimerHandle_t m_hold_down_timer = nullptr;
 
 	std::function<void(button_state_t)> m_cb_state_changed;
 	std::function<void()>				m_cb_click;
+	std::function<void()>				m_cb_hold_down;
 
 	static QueueHandle_t m_buttons_queue;
 public:
-	button(gpio_num_t pin, int debounce_ms = 10, int click_ms = 200);
+	button(gpio_num_t pin, int debounce_ms = 10, int click_ms = 200, int hold_down_ms = 1000);
 
 	void set_cb_on_state_changed(const std::function<void(button_state_t)>& cb_state_changed)
 	{
@@ -62,6 +66,11 @@ public:
 	void set_cb_on_click(const std::function<void()>& cb_click)
 	{
 		m_cb_click = cb_click;
+	}
+
+	void set_cb_on_hold_down(const std::function<void()>& cb_hold_down)
+	{
+		m_cb_hold_down = cb_hold_down;
 	}
 
 	uint32_t get_task_id() const

@@ -13,8 +13,8 @@
 #define PIN_BTN1		GPIO_NUM_1
 #define PIN_BTN2		GPIO_NUM_2
 #define PIN_BTN3		GPIO_NUM_3
-#define PIN_BTN4		GPIO_NUM_4
+#define PIN_BTN_MODE	GPIO_NUM_6
 #define PIN_BTN_SCROLL	GPIO_NUM_5
-#define PIN_BTN_CFG		GPIO_NUM_6
+#define PIN_BTN_CFG		GPIO_NUM_4
 
 #endif // __PINS__H__

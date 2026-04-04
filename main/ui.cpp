@@ -1,4 +1,5 @@
 #include "ui.h"
+#include <cstring>
 
 // Include bitmap definitions
 #include "images/images.c"
@@ -160,21 +161,51 @@ void trackball_ui::draw_ui_state()
 void trackball_ui::draw_ui_default()
 {
 	ssd1306_clear_square(&m_oled_data, 0, 16, 128, 48);
-	// TODO: implement
-	char battery_str[30] = {};
-	snprintf(battery_str, sizeof(battery_str), "Battery: %.3fV", m_bat_mV / 1000.0f);
-	ssd1306_draw_string(&m_oled_data, 0, 16, 1, battery_str);
 
-	uint32_t cpu_freq_hz	  = esp_clk_cpu_freq();
-	char	 cpu_freq_str[30] = {};
-	snprintf(cpu_freq_str, sizeof(cpu_freq_str), "CPU Freq: %luMHz", cpu_freq_hz / 1000000);
-	ssd1306_draw_string(&m_oled_data, 0, 32, 1, cpu_freq_str);
+	char str_draw[30] = {};
+	snprintf(str_draw, sizeof(str_draw), "BAT:%.3fV", m_bat_mV / 1000.0f);
+	ssd1306_draw_string(&m_oled_data, 0, 16, 2, str_draw);
+
+	strcpy(str_draw, "SCL:");
+	if(m_scroll_mode & SCROLL_MODE_HIGH_RES)
+	{
+		strcat(str_draw, "HR ");
+	}
+	if(m_scroll_mode & SCROLL_MODE_ENABLE_VSCROLL)
+	{
+		strcat(str_draw, "V ");
+	}
+	if(m_scroll_mode & SCROLL_MODE_ENABLE_HSCROLL)
+	{
+		strcat(str_draw, "H ");
+	}
+	ssd1306_draw_string(&m_oled_data, 0, 32, 2, str_draw);
+
+	snprintf(str_draw, sizeof(str_draw), "DPI:%d", m_dpi);
+	ssd1306_draw_string(&m_oled_data, 0, 48, 2, str_draw);
 }
 
 void trackball_ui::draw_ui_scroll_lock()
 {
 	ssd1306_clear_square(&m_oled_data, 0, 16, 128, 48);
 	ssd1306_bmp_show_image_with_offset(&m_oled_data, scroll_lock_bmp, scroll_lock_bmp_len, 46, 16);
+
+	int y = 16;
+	if(m_scroll_mode & SCROLL_MODE_HIGH_RES)
+	{
+		ssd1306_draw_string(&m_oled_data, 0, y, 2, "HR");
+		y += 16;
+	}
+	if(m_scroll_mode & SCROLL_MODE_ENABLE_VSCROLL)
+	{
+		ssd1306_draw_string(&m_oled_data, 0, y, 2, "V");
+		y += 16;
+	}
+	if(m_scroll_mode & SCROLL_MODE_ENABLE_HSCROLL)
+	{
+		ssd1306_draw_string(&m_oled_data, 0, y, 2, "H");
+		y += 16;
+	}
 }
 
 void trackball_ui::draw_ui_lock_buttons()

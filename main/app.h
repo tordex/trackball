@@ -7,6 +7,7 @@
 #include "pins.h"
 #include "timer.h"
 #include "nvs_flash.h"
+#include "types.h"
 
 enum app_state_t
 {
@@ -32,16 +33,19 @@ enum sensor_mode_t
 	SENSOR_MODE_GAMING,
 };
 
+const int	  PREDEFINED_DPI_COUNT		 = 4;
 struct app_config
 {
-	uint8_t	 btn1_func				= BTN_FNC_LEFT;
-	uint8_t	 btn2_func				= BTN_FNC_RIGHT;
-	uint8_t	 btn3_func				= BTN_FNC_MIDDLE;
-	uint8_t	 btn4_func				= BTN_FNC_NONE;
-	uint8_t	 scroll_sensitivity		= 100;
-	uint16_t dpi					= 600;
-	uint8_t	 sensor_mode			= SENSOR_MODE_HIGH_PERFORMANCE;
-	bool	 enable_high_res_scroll = true;
+	uint8_t	 btn1_func							  = BTN_FNC_LEFT;
+	uint8_t	 btn2_func							  = BTN_FNC_RIGHT;
+	uint8_t	 btn3_func							  = BTN_FNC_MIDDLE;
+	uint8_t	 scroll_sensitivity					  = 100;
+	uint16_t dpi								  = 600;
+	uint16_t scroll_dpi							  = 800;
+	uint8_t	 sensor_mode						  = SENSOR_MODE_HIGH_PERFORMANCE;
+	uint8_t	 scroll_mode						  = SCROLL_MODE_ENABLE_HSCROLL | SCROLL_MODE_ENABLE_VSCROLL;
+	bool	 enable_high_res_scroll				  = true;
+	uint16_t predefined_dpi[PREDEFINED_DPI_COUNT] = {200, 600, 1200, 2000};
 };
 
 class app
@@ -52,7 +56,7 @@ private:
 	button		 m_btn_1	  = {PIN_BTN1};		  // Button 1 (left-top)
 	button		 m_btn_2	  = {PIN_BTN2};		  // Button 2	(left-bottom)
 	button		 m_btn_3	  = {PIN_BTN3};		  // Button 3 (right-top)
-	button		 m_btn_4	  = {PIN_BTN4};		  // Button 4 (right-bottom)
+	button		 m_btn_mode	  = {PIN_BTN_MODE};	  // Button 4 (right-bottom)
 	button		 m_btn_scroll = {PIN_BTN_SCROLL}; // Scroll button
 	button		 m_btn_cfg	  = {PIN_BTN_CFG};	  // Configuration button
 	trackball_ui m_ui;
@@ -84,6 +88,8 @@ private:
 	void sensor_motion_callback(int16_t dx, int16_t dy);
 	void on_btn_cfg_state_changed(button_state_t state);
 	void on_btn_cfg_clicked();
+	void on_btn_mode_clicked();
+	void on_btn_mode_hold_down();
 	void on_btn_scroll_state_changed(button_state_t state);
 	void on_btn_scroll_clicked();
 	void on_update_connection_state();

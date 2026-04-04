@@ -4,6 +4,7 @@
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "oled/ssd1306.h"
+#include "types.h"
 
 enum ui_state_t
 {
@@ -24,6 +25,8 @@ private:
 	ui_state_t m_ui_state		= UI_STATE_DEFAULT;
 	int		   m_bat_mV			= 0;
 	int		   m_bat_level		= 0;
+	int		   m_dpi			= 600;
+	uint8_t	   m_scroll_mode	= SCROLL_MODE_HIGH_RES | SCROLL_MODE_ENABLE_HSCROLL | SCROLL_MODE_ENABLE_VSCROLL;
 public:
 	trackball_ui() = default;
 	~trackball_ui();
@@ -38,6 +41,28 @@ public:
 		m_locked_buttons = buttons;
 	}
 	void set_battery_level(int bat_mV, int level);
+	void set_scroll_mode(uint8_t scroll_mode)
+	{
+		m_scroll_mode = scroll_mode;
+		if(m_ui_state == UI_STATE_DEFAULT)
+		{
+			draw_ui_default();
+			ssd1306_show(&m_oled_data);
+		} else if(m_ui_state == UI_STATE_SCROLL_LOCK)
+		{
+			draw_ui_scroll_lock();
+			ssd1306_show(&m_oled_data);
+		}
+	}
+	void set_dpi(int dpi)
+	{
+		m_dpi = dpi;
+		if(m_ui_state == UI_STATE_DEFAULT)
+		{
+			draw_ui_default();
+			ssd1306_show(&m_oled_data);
+		}
+	}
 
 private:
 	void draw_status_line();
