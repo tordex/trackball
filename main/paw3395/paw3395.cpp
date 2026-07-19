@@ -42,6 +42,10 @@ const uint8_t PAW3395_PG_VALID				= 7;
 esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_t pin_motion, uint16_t dpi,
 						const OnMotionCallback_t& on_motion)
 {
+	const uint8_t PAW3395_INVALID_PRODUCT_ID_0 = 0x00;
+	const uint8_t PAW3395_INVALID_PRODUCT_ID_1 = 0xFF;
+	const int	  PAW3395_INIT_RETRIES			  = 3;
+
 	m_pin_ncs			 = ncs_pin;
 	m_pin_motion		 = pin_motion;
 	m_on_motion_callback = on_motion;
@@ -80,11 +84,31 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_
 	}
 
 	cs_high();
-	Power_up_sequence();
-	set_dpi(dpi);
+	uint8_t product_id = 0;
+	bool	  init_ok	= false;
+	for(int attempt = 1; attempt <= PAW3395_INIT_RETRIES; ++attempt)
+	{
+		Power_up_sequence();
+		set_dpi(dpi);
+		product_id = read_register(0x00);
+		if(product_id != PAW3395_INVALID_PRODUCT_ID_0 && product_id != PAW3395_INVALID_PRODUCT_ID_1)
+		{
+			init_ok = true;
+			break;
+		}
 
-	uint8_t product_id = read_register(0);
-	printf("PAW3395 Product ID: 0x%02X\n", product_id);
+		ESP_LOGW(m_log_tag, "Invalid Product ID 0x%02X (attempt %d/%d)", product_id, attempt,
+				 PAW3395_INIT_RETRIES);
+		delay_ms(10);
+	}
+
+	if(!init_ok)
+	{
+		ESP_LOGE(m_log_tag, "PAW3395 init failed, invalid Product ID after retries: 0x%02X", product_id);
+		return ESP_ERR_INVALID_RESPONSE;
+	}
+
+	ESP_LOGI(m_log_tag, "PAW3395 Product ID: 0x%02X", product_id);
 
 	// Enable RIPPLE CONTROL
 	write_register(PAW3395_REG_RIPPLE_CONTROL, 0x80);
@@ -100,7 +124,12 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_
 		return ESP_FAIL;
 	}
 
-	init_motion_pin();
+	ret = init_motion_pin();
+	if(ret != ESP_OK)
+	{
+		return ret;
+	}
+
 	return ESP_OK;
 }
 
@@ -119,7 +148,7 @@ static void IRAM_ATTR motion_isr_handler(void* arg)
 	portYIELD_FROM_ISR(woken);
 }
 
-void paw3395::init_motion_pin()
+esp_err_t paw3395::init_motion_pin()
 {
 	const gpio_config_t io_conf = {
 		.pin_bit_mask = (1ULL << m_pin_motion),
@@ -128,9 +157,21 @@ void paw3395::init_motion_pin()
 		.pull_down_en = GPIO_PULLDOWN_DISABLE,
 		.intr_type	  = GPIO_INTR_NEGEDGE,
 	};
-	gpio_config(&io_conf);
+	esp_err_t ret = gpio_config(&io_conf);
+	if(ret != ESP_OK)
+	{
+		ESP_LOGE(m_log_tag, "Motion pin gpio_config failed: %d", ret);
+		return ret;
+	}
 
-	gpio_isr_handler_add(m_pin_motion, motion_isr_handler, m_motion_semaphore);
+	ret = gpio_isr_handler_add(m_pin_motion, motion_isr_handler, m_motion_semaphore);
+	if(ret != ESP_OK)
+	{
+		ESP_LOGE(m_log_tag, "gpio_isr_handler_add failed: %d", ret);
+		return ret;
+	}
+
+	return ESP_OK;
 }
 
 void paw3395::motion_task(void* param)
@@ -196,7 +237,7 @@ uint8_t paw3395::read_register(uint8_t address, bool apply_cs)
 	uint8_t temp = SPI_SendReceive(0xFF);
 	if(apply_cs)
 		cs_high();
-	// delay_us(5); // t_SWW
+	delay_us(5); // t_SWW
 	return temp;
 }
 
@@ -446,16 +487,12 @@ void paw3395::Power_Up_Initializaton_Register_Setting()
 void paw3395::set_dpi(uint16_t CPI_Num)
 {
 	uint8_t temp;
-	cs_low();
-	delay_125_ns(PAW3395_TIMINGS_NCS_SCLK);
 	write_register(PAW3395_REG_MOTION_CTRL, 0x00);
 	temp = (uint8_t) (((CPI_Num / 50) << 8) >> 8);
 	write_register(PAW3395_REG_RESOLUTION_X_LOW, temp);
 	temp = (uint8_t) ((CPI_Num / 50) >> 8);
 	write_register(PAW3395_REG_RESOLUTION_X_HIGH, temp);
 	write_register(PAW3395_REG_SET_RESOLUTION, 0x01);
-	cs_high();
-	delay_125_ns(PAW3395_TIMINGS_BEXIT);
 }
 
 void paw3395::office_mode()

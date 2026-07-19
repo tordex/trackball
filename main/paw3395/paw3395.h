@@ -78,7 +78,7 @@ private:
 		esp_rom_delay_us(nus);
 	}
 
-	void		init_motion_pin();
+	esp_err_t init_motion_pin();
 	static void motion_task(void* param);
 
 	void	delay_125_ns(uint8_t nns);

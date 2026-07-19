@@ -59,8 +59,13 @@ void app::init()
 	buscfg.max_transfer_sz	= 32;
 	ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
 
-	m_sensor.init(SPI3_HOST, PIN_NUM_CS, PIN_NUM_MOTION, m_config.dpi,
-				  [this](int16_t dx, int16_t dy) { sensor_motion_callback(dx, dy); });
+	esp_err_t sensor_ret = m_sensor.init(SPI3_HOST, PIN_NUM_CS, PIN_NUM_MOTION, m_config.dpi,
+									 [this](int16_t dx, int16_t dy) { sensor_motion_callback(dx, dy); });
+	if(sensor_ret != ESP_OK)
+	{
+		ESP_LOGE("APP", "PAW3395 init failed: %d", sensor_ret);
+		return;
+	}
 
 	// Initialize I2C bus for the OLED display
 	i2c_master_bus_config_t i2c_mst_config		= {};
