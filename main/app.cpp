@@ -4,6 +4,8 @@
 #include "hid_func.h"
 #include "nvs_flash.h"
 #include "driver/i2c_master.h"
+#include "driver/rtc_io.h"
+#include "esp_sleep.h"
 #include "pins.h"
 #include <algorithm>
 
@@ -15,14 +17,18 @@ app::app() {}
 void app::init()
 {
 	m_btn_1.set_cb_on_state_changed([this](button_state_t state) {
+		on_activity_detected();
 		apply_button_function(state, static_cast<button_function_t>(m_config.btn1_func));
 	});
 	m_btn_2.set_cb_on_state_changed([this](button_state_t state) {
+		on_activity_detected();
 		apply_button_function(state, static_cast<button_function_t>(m_config.btn2_func));
 	});
 	m_btn_3.set_cb_on_state_changed([this](button_state_t state) {
+		on_activity_detected();
 		apply_button_function(state, static_cast<button_function_t>(m_config.btn3_func));
 	});
+	m_btn_mode.set_cb_on_state_changed([this](button_state_t state) { on_btn_mode_state_changed(state); });
 	m_btn_mode.set_cb_on_click([this]() { on_btn_mode_clicked(); });
 	m_btn_mode.set_cb_on_hold_down([this]() { on_btn_mode_hold_down(); });
 	m_btn_cfg.set_cb_on_state_changed([this](button_state_t state) { on_btn_cfg_state_changed(state); });
@@ -73,8 +79,13 @@ void app::init()
 
 	ESP_ERROR_CHECK(i2c_master_bus_add_device(m_h_i2c_bus, &dev_cfg, &m_h_i2c_dev));
 	m_ui.init(m_h_i2c_dev);
+	m_ui.power_on();
 
 	apply_config();
+	if(m_config.deep_sleep_timeout_ms > 0)
+	{
+		m_suspend_timer.start(m_config.deep_sleep_timeout_ms, false, [this]() { on_deep_sleep_timeout(); });
+	}
 
 	m_connection_state_timer.start(1000, true, [this]() { on_update_connection_state(); });
 
@@ -97,6 +108,7 @@ void app::deinit()
 
 	m_battery.deinit();
 	m_connection_state_timer.stop();
+	m_suspend_timer.stop();
 }
 
 void app::on_connection_changed()
@@ -127,10 +139,66 @@ void app::apply_config()
 	}
 }
 
+void app::on_activity_detected()
+{
+	if(m_config.deep_sleep_timeout_ms > 0)
+	{
+		m_suspend_timer.reset();
+	}
+}
+
+void app::on_deep_sleep_timeout()
+{
+	enter_deep_sleep();
+}
+
+void app::configure_deep_sleep_wakeup_sources()
+{
+	m_connection_state_timer.stop();
+
+	const gpio_num_t wake_pins[] = {PIN_BTN1, PIN_BTN2, PIN_BTN3, PIN_BTN_MODE, PIN_BTN_SCROLL, PIN_BTN_CFG,
+										PIN_NUM_MOTION};
+	uint64_t wake_pin_mask = 0;
+	for(gpio_num_t pin : wake_pins)
+	{
+		if(!rtc_gpio_is_valid_gpio(pin))
+		{
+			ESP_LOGW("APP", "GPIO%d is not RTC-capable, skipping deep sleep wake setup", pin);
+			continue;
+		}
+
+		ESP_ERROR_CHECK(rtc_gpio_init(pin));
+		ESP_ERROR_CHECK(rtc_gpio_pullup_en(pin));
+		ESP_ERROR_CHECK(rtc_gpio_pulldown_dis(pin));
+		wake_pin_mask |= 1ULL << pin;
+	}
+
+	ESP_ERROR_CHECK(esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON));
+	ESP_ERROR_CHECK(esp_sleep_enable_ext1_wakeup_io(wake_pin_mask, ESP_EXT1_WAKEUP_ANY_LOW));
+}
+
+void app::enter_deep_sleep()
+{
+	if(m_config.deep_sleep_timeout_ms == 0)
+	{
+		return;
+	}
+
+	m_suspend_timer.stop();
+	configure_deep_sleep_wakeup_sources();
+	m_ui.power_off();
+	ble_deinit();
+	m_sensor.low_power_mode();
+	ESP_LOGI("APP", "Entering deep sleep");
+	esp_deep_sleep_start();
+}
+
 extern uint8_t resolution_multiplier;
 
 void app::sensor_motion_callback(int16_t dx, int16_t dy)
 {
+	on_activity_detected();
+
 	bool		   b_send_report = false;
 	int8_t		   wheel		 = 0;
 	int8_t		   ac_pan		 = 0;
@@ -200,10 +268,21 @@ void app::sensor_motion_callback(int16_t dx, int16_t dy)
 	}
 }
 
-void app::on_btn_cfg_state_changed(button_state_t state) {}
+void app::on_btn_mode_state_changed(button_state_t state)
+{
+	(void) state;
+	on_activity_detected();
+}
+
+void app::on_btn_cfg_state_changed(button_state_t state)
+{
+	(void) state;
+	on_activity_detected();
+}
 
 void app::on_btn_cfg_clicked()
 {
+	on_activity_detected();
 	int dpi_idx = 1;
 	for(int i = 0; i < PREDEFINED_DPI_COUNT; i++)
 	{
@@ -221,6 +300,7 @@ void app::on_btn_cfg_clicked()
 
 void app::on_btn_mode_clicked()
 {
+	on_activity_detected();
 	const int mode_count = 3;
 	uint8_t	  modes[mode_count] = {
 		SCROLL_MODE_ENABLE_HSCROLL | SCROLL_MODE_ENABLE_VSCROLL,
@@ -249,6 +329,7 @@ void app::on_btn_mode_clicked()
 
 void app::on_btn_mode_hold_down()
 {
+	on_activity_detected();
 	m_config.enable_high_res_scroll = !m_config.enable_high_res_scroll;
 
 	uint8_t scroll_mode = m_config.scroll_mode;
@@ -261,6 +342,8 @@ void app::on_btn_mode_hold_down()
 
 void app::on_btn_scroll_state_changed(button_state_t state)
 {
+	on_activity_detected();
+
 	if(state == button_state_t::pressed)
 	{
 		if(m_app_state == APP_STATE_DEFAULT)
@@ -282,6 +365,7 @@ void app::on_btn_scroll_state_changed(button_state_t state)
 
 void app::on_btn_scroll_clicked()
 {
+	on_activity_detected();
 	if(m_app_state == APP_STATE_DEFAULT || m_app_state == APP_STATE_SCROLL_HOLD)
 	{
 		m_locked_buttons = m_buttons;
@@ -321,6 +405,8 @@ void app::on_battery_state_changed(int voltage, int level)
 
 void app::apply_button_function(button_state_t state, button_function_t func)
 {
+	on_activity_detected();
+
 	if(state == button_state_t::pressed)
 	{
 		switch(func)

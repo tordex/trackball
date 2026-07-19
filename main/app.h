@@ -6,6 +6,7 @@
 #include "ui.h"
 #include "pins.h"
 #include "timer.h"
+#include "sdkconfig.h"
 #include "nvs_flash.h"
 #include "types.h"
 
@@ -40,8 +41,9 @@ struct app_config
 	uint8_t	 btn2_func							  = BTN_FNC_RIGHT;
 	uint8_t	 btn3_func							  = BTN_FNC_MIDDLE;
 	uint8_t	 scroll_sensitivity					  = 100;
+	uint32_t deep_sleep_timeout_ms				  = 180000; // 3 minutes
 	uint16_t dpi								  = 600;
-	uint16_t scroll_dpi							  = 800;
+	uint16_t scroll_dpi							  = 600;
 	uint8_t	 sensor_mode						  = SENSOR_MODE_HIGH_PERFORMANCE;
 	uint8_t	 scroll_mode						  = SCROLL_MODE_ENABLE_HSCROLL | SCROLL_MODE_ENABLE_VSCROLL;
 	bool	 enable_high_res_scroll				  = true;
@@ -74,6 +76,7 @@ private:
 	i2c_master_dev_handle_t m_h_i2c_dev = nullptr;
 
 	timer m_connection_state_timer{"connection_state"};
+	timer m_suspend_timer{"suspend"};
 public:
 	app();
 	~app() = default;
@@ -85,9 +88,14 @@ public:
 
 private:
 	void apply_config();
+	void on_activity_detected();
+	void enter_deep_sleep();
+	void on_deep_sleep_timeout();
+	void configure_deep_sleep_wakeup_sources();
 	void sensor_motion_callback(int16_t dx, int16_t dy);
 	void on_btn_cfg_state_changed(button_state_t state);
 	void on_btn_cfg_clicked();
+	void on_btn_mode_state_changed(button_state_t state);
 	void on_btn_mode_clicked();
 	void on_btn_mode_hold_down();
 	void on_btn_scroll_state_changed(button_state_t state);

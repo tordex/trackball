@@ -33,6 +33,8 @@ public:
 
 	void init(i2c_master_dev_handle_t oled_dev);
 	void deinit();
+	void power_off();
+	void power_on();
 
 	void set_connection_state(bool connected, int8_t rssi, bool rssi_valid);
 	void set_ui_state(ui_state_t state);

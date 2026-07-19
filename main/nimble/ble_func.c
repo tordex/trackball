@@ -16,6 +16,7 @@ static const char* tag = "NimBLEKBD_BLEFUNC";
 
 static int	   bleprph_gap_event(struct ble_gap_event* event, void* arg);
 static uint8_t own_addr_type;
+static bool	   ble_running = false;
 
 /**
  * Logs information about a connection to the console.
@@ -293,6 +294,11 @@ void ble_init()
 {
 	int rc;
 
+	if(ble_running)
+	{
+		return;
+	}
+
 	nimble_port_init();
 
 	/* Initialize the NimBLE host configuration. */
@@ -323,12 +329,38 @@ void ble_init()
 	ble_store_config_init();
 
 	nimble_port_freertos_init(bleprph_host_task);
+	ble_running = true;
+}
+
+void ble_suspend()
+{
+	if(!ble_running)
+	{
+		return;
+	}
+
+	int rc = nimble_port_stop();
+	if(rc != 0)
+	{
+		ESP_LOGE(tag, "nimble_port_stop failed: %d", rc);
+	}
+
+	rc = nimble_port_deinit();
+	if(rc != ESP_OK)
+	{
+		ESP_LOGE(tag, "nimble_port_deinit failed: %d", rc);
+	}
+
+	ble_running = false;
+}
+
+void ble_resume()
+{
+	ble_init();
 }
 
 void ble_deinit()
 {
-	nimble_port_freertos_deinit();
-	ble_store_config_deinit();
+	ble_suspend();
 	gatt_svr_deinit();
-	nimble_port_deinit();
 }

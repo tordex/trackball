@@ -13,6 +13,7 @@ extern "C"
 	void hid_set_disconnected();
 	bool hid_get_connected();
 	bool hid_get_rssi(int8_t* out_rssi);
+	void hid_set_connected();
 	void hid_set_notify(uint16_t attr_handle, uint8_t cur_notify, uint8_t cur_indicate);
 	bool hid_set_suspend(bool need_suspend);
 	bool hid_set_report_mode(bool boot_mode);

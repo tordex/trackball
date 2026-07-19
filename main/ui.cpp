@@ -13,11 +13,22 @@ trackball_ui::~trackball_ui()
 void trackball_ui::init(i2c_master_dev_handle_t oled_dev)
 {
 	ssd1306_init(&m_oled_data, 128, 64, oled_dev);
+	ssd1306_poweron(&m_oled_data);
 	ssd1306_clear(&m_oled_data);
 	ssd1306_show(&m_oled_data);
 	draw_status_line();
 	draw_ui_state();
 	ssd1306_show(&m_oled_data);
+}
+
+void trackball_ui::power_off()
+{
+	ssd1306_poweroff(&m_oled_data);
+}
+
+void trackball_ui::power_on()
+{
+	ssd1306_poweron(&m_oled_data);
 }
 
 void trackball_ui::deinit()

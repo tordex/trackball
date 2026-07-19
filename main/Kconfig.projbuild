@@ -1,4 +1,4 @@
-menu "Example Configuration"
+menu "Trackball Configuration"
 
     config BLINK_GPIO
         int "Blink GPIO number for CAPSLOCK"

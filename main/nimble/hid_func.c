@@ -191,6 +191,12 @@ void hid_set_disconnected()
 	hid_on_connection_changed();
 }
 
+void hid_set_connected()
+{
+	My_hid_dev.connected = true;
+	hid_on_connection_changed();
+}
+
 bool hid_get_connected()
 {
 	return My_hid_dev.connected;
