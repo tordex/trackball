@@ -88,6 +88,7 @@ private:
 
 	// for nvs_storage
 	const char*	 m_nvs_namespace		= "storage";
+	const char*	 m_nvs_cfg_key			= "app_cfg";
 	nvs_handle_t m_nvs_handle			= 0;
 
 	i2c_master_bus_handle_t m_h_i2c_bus = nullptr;
@@ -115,6 +116,15 @@ public:
 	}
 
 private:
+	struct persisted_app_config_t
+	{
+		uint32_t   version = 1;
+		app_config config{};
+	};
+
+	esp_err_t save_config_to_nvs();
+	bool load_config_from_nvs();
+
 	void apply_config();
 	void on_activity_detected();
 	void enter_deep_sleep();

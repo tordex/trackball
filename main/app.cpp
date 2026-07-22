@@ -42,6 +42,7 @@ void app::init()
 	}
 	ESP_ERROR_CHECK(ret);
 	ESP_ERROR_CHECK(nvs_open(m_nvs_namespace, NVS_READWRITE, &m_nvs_handle));
+	load_config_from_nvs();
 
 	// Initialize Bluetooth
 	ble_init();
@@ -74,6 +75,13 @@ void app::init()
 	ESP_ERROR_CHECK(i2c_master_bus_add_device(m_h_i2c_bus, &dev_cfg, &m_h_i2c_dev));
 	m_ui.init(m_h_i2c_dev);
 	m_ui.power_on();
+	m_ui.set_dpi(m_config.dpi);
+	uint8_t scroll_mode = m_config.scroll_mode;
+	if(m_config.enable_high_res_scroll)
+	{
+		scroll_mode |= SCROLL_MODE_HIGH_RES;
+	}
+	m_ui.set_scroll_mode(scroll_mode);
 
 	esp_err_t sensor_ret = m_sensor.init(SPI3_HOST, PIN_NUM_CS, PIN_NUM_MOTION,
 									 [this](int16_t dx, int16_t dy) { sensor_motion_callback(dx, dy); });
@@ -120,6 +128,73 @@ void app::init()
 	m_btn_cfg->set_cb_on_click([this]() { send_event(app_event_btn_cfg_clicked); });
 	m_btn_scroll->set_cb_on_state_changed([this](button_state_t state) { send_event(app_event_btn_scroll_state_changed, static_cast<uint32_t>(state)); });
 	m_btn_scroll->set_cb_on_click([this]() { send_event(app_event_btn_scroll_clicked); });
+}
+
+esp_err_t app::save_config_to_nvs()
+{
+	if(m_nvs_handle == 0)
+	{
+		ESP_LOGW("APP", "NVS handle is not initialized, skipping config save");
+		return ESP_ERR_INVALID_STATE;
+	}
+
+	persisted_app_config_t persisted{};
+	persisted.config = m_config;
+
+	esp_err_t ret = nvs_set_blob(m_nvs_handle, m_nvs_cfg_key, &persisted, sizeof(persisted));
+	if(ret != ESP_OK)
+	{
+		ESP_LOGE("APP", "Failed to write config to NVS: %s", esp_err_to_name(ret));
+		return ret;
+	}
+
+	ret = nvs_commit(m_nvs_handle);
+	if(ret != ESP_OK)
+	{
+		ESP_LOGE("APP", "Failed to commit config to NVS: %s", esp_err_to_name(ret));
+		return ret;
+	}
+
+	return ESP_OK;
+}
+
+bool app::load_config_from_nvs()
+{
+	if(m_nvs_handle == 0)
+	{
+		ESP_LOGW("APP", "NVS handle is not initialized, using default config");
+		return false;
+	}
+
+	persisted_app_config_t persisted{};
+	size_t					 size = sizeof(persisted);
+	esp_err_t				 ret  = nvs_get_blob(m_nvs_handle, m_nvs_cfg_key, &persisted, &size);
+	if(ret == ESP_ERR_NVS_NOT_FOUND)
+	{
+		ESP_LOGI("APP", "Config not found in NVS, using defaults");
+		return false;
+	}
+
+	if(ret != ESP_OK)
+	{
+		ESP_LOGW("APP", "Failed to read config from NVS (%s), using defaults", esp_err_to_name(ret));
+		return false;
+	}
+
+	if(size != sizeof(persisted))
+	{
+		ESP_LOGW("APP", "Stored config size mismatch (%u), using defaults", (unsigned int)size);
+		return false;
+	}
+
+	if(persisted.version != 1)
+	{
+		ESP_LOGW("APP", "Stored config version mismatch (%u), using defaults", persisted.version);
+		return false;
+	}
+
+	m_config = persisted.config;
+	return true;
 }
 
 void app::deinit()
@@ -304,6 +379,7 @@ void app::on_btn_cfg_clicked()
 	}
 	dpi_idx = (dpi_idx + 1) % PREDEFINED_DPI_COUNT;
 	m_config.dpi = m_config.predefined_dpi[dpi_idx];
+	save_config_to_nvs();
 	m_sensor.set_dpi(m_config.dpi);
 	m_ui.set_dpi(m_config.dpi);
 }
@@ -329,6 +405,7 @@ void app::on_btn_mode_clicked()
 	}
 	mode = (mode + 1) % mode_count;
 	m_config.scroll_mode = modes[mode];
+	save_config_to_nvs();
 	uint8_t scroll_mode	 = m_config.scroll_mode;
 	if(m_config.enable_high_res_scroll)
 	{
@@ -341,6 +418,7 @@ void app::on_btn_mode_hold_down()
 {
 	on_activity_detected();
 	m_config.enable_high_res_scroll = !m_config.enable_high_res_scroll;
+	save_config_to_nvs();
 
 	uint8_t scroll_mode = m_config.scroll_mode;
 	if(m_config.enable_high_res_scroll)
