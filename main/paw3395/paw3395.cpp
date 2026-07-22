@@ -1,5 +1,6 @@
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
+#include "driver/rtc_io.h"
 #include <esp_private/esp_clk.h>
 #include "esp_log.h"
 #include "paw3395.h"
@@ -39,8 +40,7 @@ const uint8_t PAW3395_OP_MODE1				= 1;
 const uint8_t PAW3395_PG_FIRST				= 6;
 const uint8_t PAW3395_PG_VALID				= 7;
 
-esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_t pin_motion, uint16_t dpi,
-						const OnMotionCallback_t& on_motion)
+esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_t pin_motion, const OnMotionCallback_t& on_motion)
 {
 	const uint8_t PAW3395_INVALID_PRODUCT_ID_0 = 0x00;
 	const uint8_t PAW3395_INVALID_PRODUCT_ID_1 = 0xFF;
@@ -50,12 +50,7 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_
 	m_pin_motion		 = pin_motion;
 	m_on_motion_callback = on_motion;
 
-	m_motion_semaphore	 = xSemaphoreCreateBinary();
-	if(!m_motion_semaphore)
-	{
-		ESP_LOGE(m_log_tag, "Failed to create semaphore");
-		return ESP_FAIL;
-	}
+	init_motion_pin();
 
 	// Configure NCS pin
 	gpio_config_t io_conf = {};
@@ -89,7 +84,6 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_
 	for(int attempt = 1; attempt <= PAW3395_INIT_RETRIES; ++attempt)
 	{
 		Power_up_sequence();
-		set_dpi(dpi);
 		product_id = read_register(0x00);
 		if(product_id != PAW3395_INVALID_PRODUCT_ID_0 && product_id != PAW3395_INVALID_PRODUCT_ID_1)
 		{
@@ -112,8 +106,6 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_
 
 	// Enable RIPPLE CONTROL
 	write_register(PAW3395_REG_RIPPLE_CONTROL, 0x80);
-	// office_mode();
-	// gaming_mode();
 
 	// Lift cut 2mm
 	set_lift_cut(2);
@@ -124,10 +116,10 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_
 		return ESP_FAIL;
 	}
 
-	ret = init_motion_pin();
-	if(ret != ESP_OK)
+	// If MOTION is already low, no negedge will occur. Trigger one read cycle now.
+	if(gpio_get_level(m_pin_motion) == 0)
 	{
-		return ret;
+		xSemaphoreGive(m_motion_semaphore);
 	}
 
 	return ESP_OK;
@@ -150,6 +142,23 @@ static void IRAM_ATTR motion_isr_handler(void* arg)
 
 esp_err_t paw3395::init_motion_pin()
 {
+	if(!m_motion_semaphore)
+	{
+		m_motion_semaphore = xSemaphoreCreateBinary();
+		if(!m_motion_semaphore)
+		{
+			ESP_LOGE(m_log_tag, "Failed to create semaphore");
+			return ESP_FAIL;
+		}
+	}
+
+	if(rtc_gpio_is_valid_gpio(m_pin_motion))
+	{
+		// When waking from deep sleep, wakeup pins can stay in RTC mode.
+		// Release it so edge interrupts work in digital GPIO mode.
+		rtc_gpio_deinit(m_pin_motion);
+	}
+
 	const gpio_config_t io_conf = {
 		.pin_bit_mask = (1ULL << m_pin_motion),
 		.mode		  = GPIO_MODE_INPUT,
@@ -164,10 +173,19 @@ esp_err_t paw3395::init_motion_pin()
 		return ret;
 	}
 
+	gpio_isr_handler_remove(m_pin_motion);
+
 	ret = gpio_isr_handler_add(m_pin_motion, motion_isr_handler, m_motion_semaphore);
 	if(ret != ESP_OK)
 	{
 		ESP_LOGE(m_log_tag, "gpio_isr_handler_add failed: %d", ret);
+		return ret;
+	}
+
+	ret = gpio_intr_enable(m_pin_motion);
+	if(ret != ESP_OK)
+	{
+		ESP_LOGE(m_log_tag, "gpio_intr_enable failed: %d", ret);
 		return ret;
 	}
 
@@ -179,7 +197,7 @@ void paw3395::motion_task(void* param)
 	auto pThis = static_cast<paw3395*>(param);
 	while(true)
 	{
-		if(xSemaphoreTake(pThis->m_motion_semaphore, portMAX_DELAY))
+		if(pThis->m_motion_semaphore && xSemaphoreTake(pThis->m_motion_semaphore, portMAX_DELAY))
 		{
 			int16_t dx		= 0;
 			int16_t dy		= 0;
@@ -254,7 +272,7 @@ void paw3395::write_register(uint8_t address, uint8_t value)
 void paw3395::Power_up_sequence()
 {
 	uint8_t reg_it;
-	delay_ms(50);
+	delay_ms(60);
 	cs_low();
 	delay_125_ns(PAW3395_TIMINGS_NCS_SCLK);
 	cs_high();
@@ -263,7 +281,7 @@ void paw3395::Power_up_sequence()
 	delay_125_ns(PAW3395_TIMINGS_NCS_SCLK);
 
 	write_register(PAW3395_REG_POWERUPRESET, PAW3395_POWERUPRESET_POWERON);
-	delay_ms(5);
+	delay_ms(6);
 	Power_Up_Initializaton_Register_Setting();
 	cs_high();
 	delay_125_ns(PAW3395_TIMINGS_NCS_SCLK);

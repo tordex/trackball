@@ -1,5 +1,6 @@
 #include "ui.h"
 #include <cstring>
+#include <cstdio>
 
 // Include bitmap definitions
 #include "images/images.c"

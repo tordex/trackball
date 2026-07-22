@@ -42,7 +42,7 @@ public:
 	paw3395() {}
 	~paw3395() {}
 
-	esp_err_t init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_t pin_motion, uint16_t dpi,
+	esp_err_t init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_t pin_motion,
 				   const OnMotionCallback_t& on_motion);
 
 	/// @brief Set the lift cut height

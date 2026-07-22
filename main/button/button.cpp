@@ -33,11 +33,9 @@ button::button(gpio_num_t pin, int debounce_ms /* = 10 */, int click_ms /* = 100
 
 	static std::once_flag button_task_flag;
 	std::call_once(button_task_flag, [this]() {
-		m_buttons_queue = xQueueCreate(10, sizeof(button_event_t));
+		m_buttons_queue = xQueueCreate(32, sizeof(button_event_t));
 		xTaskCreate(button::buttons_task, "buttons_task", 4096, nullptr, 5, nullptr);
 	});
-
-	gpio_isr_handler_add(m_pin, btn_isr_handler, (void*) this);
 
 	m_debounce_timer =
 		xTimerCreate("debounce_timer", pdMS_TO_TICKS(m_debounce_ms), pdFALSE, this, [](TimerHandle_t xTimer) {
@@ -49,6 +47,8 @@ button::button(gpio_num_t pin, int debounce_ms /* = 10 */, int click_ms /* = 100
 			auto btn = static_cast<button*>(pvTimerGetTimerID(xTimer));
 			btn->send_event(btn_event_t::hold_down_timer);
 		});
+	gpio_isr_handler_remove(m_pin);
+	gpio_isr_handler_add(m_pin, btn_isr_handler, (void*) this);
 }
 
 void button::buttons_task(void*)

@@ -93,7 +93,10 @@ public:
 	void send_event(btn_event_t event)
 	{
 		button_event_t btn_event = {this, event};
-		xQueueSend(m_buttons_queue, &btn_event, portMAX_DELAY);
+		if(m_buttons_queue)
+		{
+			xQueueSend(m_buttons_queue, &btn_event, 0);
+		}
 	}
 
 private:

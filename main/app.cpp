@@ -14,27 +14,24 @@ extern "C" void ble_deinit();
 
 app::app() {}
 
+const gpio_num_t wake_pins[] = {PIN_NUM_MOTION};
+
+static void release_wakeup_pins_from_rtc()
+{
+	for(gpio_num_t pin : wake_pins)
+	{
+		if(rtc_gpio_is_valid_gpio(pin))
+		{
+			rtc_gpio_deinit(pin);
+		}
+	}
+}
+
 void app::init()
 {
-	m_btn_1.set_cb_on_state_changed([this](button_state_t state) {
-		on_activity_detected();
-		apply_button_function(state, static_cast<button_function_t>(m_config.btn1_func));
-	});
-	m_btn_2.set_cb_on_state_changed([this](button_state_t state) {
-		on_activity_detected();
-		apply_button_function(state, static_cast<button_function_t>(m_config.btn2_func));
-	});
-	m_btn_3.set_cb_on_state_changed([this](button_state_t state) {
-		on_activity_detected();
-		apply_button_function(state, static_cast<button_function_t>(m_config.btn3_func));
-	});
-	m_btn_mode.set_cb_on_state_changed([this](button_state_t state) { on_btn_mode_state_changed(state); });
-	m_btn_mode.set_cb_on_click([this]() { on_btn_mode_clicked(); });
-	m_btn_mode.set_cb_on_hold_down([this]() { on_btn_mode_hold_down(); });
-	m_btn_cfg.set_cb_on_state_changed([this](button_state_t state) { on_btn_cfg_state_changed(state); });
-	m_btn_cfg.set_cb_on_click([this]() { on_btn_cfg_clicked(); });
-	m_btn_scroll.set_cb_on_state_changed([this](button_state_t state) { on_btn_scroll_state_changed(state); });
-	m_btn_scroll.set_cb_on_click([this]() { on_btn_scroll_clicked(); });
+	release_wakeup_pins_from_rtc();
+
+	m_events_queue = xQueueCreate(32, sizeof(app_event_data_t));
 
 	/* Initialize NVS — it is used to store PHY calibration data and Nimble bonding data */
 	esp_err_t ret = nvs_flash_init();
@@ -59,15 +56,7 @@ void app::init()
 	buscfg.max_transfer_sz	= 32;
 	ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
 
-	esp_err_t sensor_ret = m_sensor.init(SPI3_HOST, PIN_NUM_CS, PIN_NUM_MOTION, m_config.dpi,
-									 [this](int16_t dx, int16_t dy) { sensor_motion_callback(dx, dy); });
-	if(sensor_ret != ESP_OK)
-	{
-		ESP_LOGE("APP", "PAW3395 init failed: %d", sensor_ret);
-		return;
-	}
-
-	// Initialize I2C bus for the OLED display
+	// Initialize I2C bus and OLED early so startup errors can be shown without serial logs.
 	i2c_master_bus_config_t i2c_mst_config		= {};
 	i2c_mst_config.clk_source					= I2C_CLK_SRC_DEFAULT;
 	i2c_mst_config.i2c_port						= -1; // auto select
@@ -86,16 +75,51 @@ void app::init()
 	m_ui.init(m_h_i2c_dev);
 	m_ui.power_on();
 
-	apply_config();
-	if(m_config.deep_sleep_timeout_ms > 0)
+	esp_err_t sensor_ret = m_sensor.init(SPI3_HOST, PIN_NUM_CS, PIN_NUM_MOTION,
+									 [this](int16_t dx, int16_t dy) { sensor_motion_callback(dx, dy); });
+	if(sensor_ret != ESP_OK)
 	{
-		m_suspend_timer.start(m_config.deep_sleep_timeout_ms, false, [this]() { on_deep_sleep_timeout(); });
+		ESP_LOGE("APP", "PAW3395 init failed: %d", sensor_ret);
+		return;
 	}
 
-	m_connection_state_timer.start(1000, true, [this]() { on_update_connection_state(); });
+	apply_config();
 
-	m_battery.set_callback([this](int voltage, int level) { on_battery_state_changed(voltage, level); });
+	if(m_config.deep_sleep_timeout_ms > 0)
+	{
+		m_suspend_timer.start(m_config.deep_sleep_timeout_ms, false, [this]() { send_event(app_event_sleep); });
+	}
+
+	m_connection_state_timer.start(1000, true, [this]() { send_event(app_event_update_connection_state); });
+
+	m_battery.set_callback([this](int voltage, int level) { send_event(app_event_battery_state_changed); });
 	ESP_ERROR_CHECK(m_battery.init());
+
+	m_btn_1				= new button(PIN_BTN1); // Button 1 (left-top)
+	m_btn_2				= new button(PIN_BTN2); // Button 2	(left-bottom)
+	m_btn_3				= new button(PIN_BTN3);		// Button 3 (right-top)
+	m_btn_mode			= new button(PIN_BTN_MODE);	// Button 4 (right-bottom)
+	m_btn_scroll		= new button(PIN_BTN_SCROLL); // Scroll button
+	m_btn_cfg			= new button(PIN_BTN_CFG);	// Configuration button
+
+	// Configure button callbacks
+	m_btn_1->set_cb_on_state_changed([this](button_state_t state) {
+		on_activity_detected();
+		apply_button_function(state, static_cast<button_function_t>(m_config.btn1_func));
+	});
+	m_btn_2->set_cb_on_state_changed([this](button_state_t state) {
+		on_activity_detected();
+		apply_button_function(state, static_cast<button_function_t>(m_config.btn2_func));
+	});
+	m_btn_3->set_cb_on_state_changed([this](button_state_t state) {
+		on_activity_detected();
+		apply_button_function(state, static_cast<button_function_t>(m_config.btn3_func));
+	});
+	m_btn_mode->set_cb_on_click([this]() { send_event(app_event_btn_mode_clicked);});
+	m_btn_mode->set_cb_on_hold_down([this]() { send_event(app_event_btn_mode_hold_down); });
+	m_btn_cfg->set_cb_on_click([this]() { send_event(app_event_btn_cfg_clicked); });
+	m_btn_scroll->set_cb_on_state_changed([this](button_state_t state) { send_event(app_event_btn_scroll_state_changed, static_cast<uint32_t>(state)); });
+	m_btn_scroll->set_cb_on_click([this]() { send_event(app_event_btn_scroll_clicked); });
 }
 
 void app::deinit()
@@ -114,6 +138,7 @@ void app::deinit()
 	m_battery.deinit();
 	m_connection_state_timer.stop();
 	m_suspend_timer.stop();
+	m_ui.power_off();
 }
 
 void app::on_connection_changed()
@@ -152,17 +177,10 @@ void app::on_activity_detected()
 	}
 }
 
-void app::on_deep_sleep_timeout()
-{
-	enter_deep_sleep();
-}
-
 void app::configure_deep_sleep_wakeup_sources()
 {
 	m_connection_state_timer.stop();
 
-	const gpio_num_t wake_pins[] = {PIN_BTN1, PIN_BTN2, PIN_BTN3, PIN_BTN_MODE, PIN_BTN_SCROLL, PIN_BTN_CFG,
-										PIN_NUM_MOTION};
 	uint64_t wake_pin_mask = 0;
 	for(gpio_num_t pin : wake_pins)
 	{
@@ -188,12 +206,10 @@ void app::enter_deep_sleep()
 	{
 		return;
 	}
-
-	m_suspend_timer.stop();
-	configure_deep_sleep_wakeup_sources();
-	m_ui.power_off();
-	ble_deinit();
+	deinit();
 	m_sensor.low_power_mode();
+
+	configure_deep_sleep_wakeup_sources();
 	ESP_LOGI("APP", "Entering deep sleep");
 	esp_deep_sleep_start();
 }
@@ -273,17 +289,6 @@ void app::sensor_motion_callback(int16_t dx, int16_t dy)
 	}
 }
 
-void app::on_btn_mode_state_changed(button_state_t state)
-{
-	(void) state;
-	on_activity_detected();
-}
-
-void app::on_btn_cfg_state_changed(button_state_t state)
-{
-	(void) state;
-	on_activity_detected();
-}
 
 void app::on_btn_cfg_clicked()
 {
@@ -483,4 +488,56 @@ void app::set_app_state(app_state_t state)
 void app::send_report(int16_t dx, int16_t dy, int16_t wheel, int16_t ac_pan)
 {
 	hid_mouse_send_report(get_report_buttons(), dx, dy, wheel, ac_pan);
+}
+
+void app::loop()
+{
+	app_event_data_t event_data;
+	while(true)
+	{
+		if(xQueueReceive(m_events_queue, &event_data, portMAX_DELAY))
+		{
+			switch(event_data.event)
+			{
+			case app_event_update_connection_state:
+				on_update_connection_state();
+				break;
+
+			case app_event_sleep:
+				enter_deep_sleep();
+				break;
+
+			case app_event_battery_state_changed:
+				{
+					int voltage, level;
+					m_battery.get_state(voltage, level);
+					on_battery_state_changed(voltage, level);
+				}
+				break;
+
+			case app_event_btn_cfg_clicked:
+				on_btn_cfg_clicked();
+				break;
+
+			case app_event_btn_mode_clicked:
+				on_btn_mode_clicked();
+				break;
+
+			case app_event_btn_mode_hold_down:
+				on_btn_mode_hold_down();
+				break;
+
+			case app_event_btn_scroll_clicked:
+				on_btn_scroll_clicked();
+				break;
+
+			case app_event_btn_scroll_state_changed:
+				on_btn_scroll_state_changed(static_cast<button_state_t>(event_data.data));
+				break;
+
+			default:
+				break;
+			}
+		}
+	}
 }

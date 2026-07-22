@@ -19,17 +19,14 @@ app* g_app = nullptr;
 
 void hid_on_connection_changed()
 {
-	g_app->on_connection_changed();
+	g_app->send_event(app_event_update_connection_state);
 }
 
 static void app_task(void* pvParameters)
 {
 	g_app = new app();
 	g_app->init();
-	for(;;)
-	{
-		vTaskDelay(portMAX_DELAY);
-	}
+	g_app->loop();
 }
 
 extern "C" void app_main(void)
