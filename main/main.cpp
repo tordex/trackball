@@ -37,5 +37,5 @@ extern "C" void app_main(void)
 
 	gpio_install_isr_service(0);
 
-	xTaskCreatePinnedToCore(&app_task, "app", 4096, NULL, 5, NULL, 1);
+	xTaskCreatePinnedToCore(&app_task, "app", 4096, NULL, 5, NULL, 0);
 }

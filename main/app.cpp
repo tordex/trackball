@@ -573,6 +573,11 @@ void app::loop()
 	app_event_data_t event_data;
 	while(true)
 	{
+		if(m_events_queue == nullptr)
+		{
+			vTaskDelay(pdMS_TO_TICKS(10));
+			continue;
+		}
 		if(xQueueReceive(m_events_queue, &event_data, portMAX_DELAY))
 		{
 			switch(event_data.event)

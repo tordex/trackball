@@ -75,6 +75,7 @@ static struct hid_device_data
 	.connected		  = false,
 	.suspended_state  = false,
 	.report_mode_boot = false,
+	.conn_handle	  = 0,
 };
 
 /* mark report for indicate/notify when central subscribes to service charachetric with report */
@@ -204,7 +205,7 @@ bool hid_get_connected()
 
 bool hid_get_rssi(int8_t* out_rssi)
 {
-	if(My_hid_dev.connected)
+	if(My_hid_dev.connected && My_hid_dev.conn_handle)
 	{
 		int rc = ble_gap_conn_rssi(My_hid_dev.conn_handle, out_rssi);
 		return (rc == 0);

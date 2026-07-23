@@ -158,7 +158,7 @@ static int bleprph_gap_event(struct ble_gap_event* event, void* arg)
 			bleprph_print_conn_desc(&desc);
 
 			struct ble_gap_upd_params params = {
-				.itvl_min = 0x06, .itvl_max = 0x0A, .latency = 0, .supervision_timeout = 42};
+				.itvl_min = 0x06, .itvl_max = 0x0A, .latency = 4, .supervision_timeout = 42};
 
 			int rc = ble_gap_update_params(event->connect.conn_handle, &params);
 			if(rc != 0)

@@ -32,8 +32,8 @@ button::button(gpio_num_t pin, int debounce_ms /* = 10 */, int click_ms /* = 100
 	gpio_config(&io_conf);
 
 	static std::once_flag button_task_flag;
-	std::call_once(button_task_flag, [this]() {
-		m_buttons_queue = xQueueCreate(32, sizeof(button_event_t));
+	std::call_once(button_task_flag, []() {
+		button::m_buttons_queue = xQueueCreate(32, sizeof(button_event_t));
 		xTaskCreate(button::buttons_task, "buttons_task", 4096, nullptr, 5, nullptr);
 	});
 
