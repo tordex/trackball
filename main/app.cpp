@@ -14,23 +14,8 @@ extern "C" void ble_deinit();
 
 app::app() {}
 
-const gpio_num_t wake_pins[] = {PIN_NUM_MOTION};
-
-static void release_wakeup_pins_from_rtc()
-{
-	for(gpio_num_t pin : wake_pins)
-	{
-		if(rtc_gpio_is_valid_gpio(pin))
-		{
-			rtc_gpio_deinit(pin);
-		}
-	}
-}
-
 void app::init()
 {
-	release_wakeup_pins_from_rtc();
-
 	m_events_queue = xQueueCreate(32, sizeof(app_event_data_t));
 
 	/* Initialize NVS — it is used to store PHY calibration data and Nimble bonding data */
@@ -99,6 +84,7 @@ void app::init()
 	}
 
 	m_connection_state_timer.start(1000, true, [this]() { send_event(app_event_update_connection_state); });
+	oled_timer_start();
 
 	m_battery.set_callback([this](int voltage, int level) { send_event(app_event_battery_state_changed); });
 	ESP_ERROR_CHECK(m_battery.init());
@@ -256,6 +242,8 @@ void app::configure_deep_sleep_wakeup_sources()
 {
 	m_connection_state_timer.stop();
 
+	const gpio_num_t wake_pins[] = {PIN_NUM_MOTION};
+
 	uint64_t wake_pin_mask = 0;
 	for(gpio_num_t pin : wake_pins)
 	{
@@ -283,6 +271,13 @@ void app::enter_deep_sleep()
 	}
 	deinit();
 	m_sensor.low_power_mode();
+
+	m_btn_1->enter_deep_sleep();
+	m_btn_2->enter_deep_sleep();
+	m_btn_3->enter_deep_sleep();
+	m_btn_mode->enter_deep_sleep();
+	m_btn_scroll->enter_deep_sleep();
+	m_btn_cfg->enter_deep_sleep();
 
 	configure_deep_sleep_wakeup_sources();
 	ESP_LOGI("APP", "Entering deep sleep");
@@ -368,6 +363,7 @@ void app::sensor_motion_callback(int16_t dx, int16_t dy)
 void app::on_btn_cfg_clicked()
 {
 	on_activity_detected();
+	oled_timer_reset();
 	int dpi_idx = 1;
 	for(int i = 0; i < PREDEFINED_DPI_COUNT; i++)
 	{
@@ -387,6 +383,10 @@ void app::on_btn_cfg_clicked()
 void app::on_btn_mode_clicked()
 {
 	on_activity_detected();
+	if(m_app_state == APP_STATE_DEFAULT)
+	{
+		oled_timer_reset();
+	}
 	const int mode_count = 3;
 	uint8_t	  modes[mode_count] = {
 		SCROLL_MODE_ENABLE_HSCROLL | SCROLL_MODE_ENABLE_VSCROLL,
@@ -417,6 +417,10 @@ void app::on_btn_mode_clicked()
 void app::on_btn_mode_hold_down()
 {
 	on_activity_detected();
+	if(m_app_state == APP_STATE_DEFAULT)
+	{
+		oled_timer_reset();
+	}
 	m_config.enable_high_res_scroll = !m_config.enable_high_res_scroll;
 	save_config_to_nvs();
 
@@ -436,6 +440,7 @@ void app::on_btn_scroll_state_changed(button_state_t state)
 	{
 		if(m_app_state == APP_STATE_DEFAULT)
 		{
+			oled_timer_stop();
 			m_app_state = APP_STATE_SCROLL_HOLD;
 			m_ui.set_ui_state(UI_STATE_SCROLL_LOCK);
 			m_sensor.set_dpi(m_config.scroll_dpi);
@@ -444,6 +449,7 @@ void app::on_btn_scroll_state_changed(button_state_t state)
 	{
 		if(m_app_state == APP_STATE_SCROLL_HOLD)
 		{
+			oled_timer_reset();
 			m_app_state = APP_STATE_DEFAULT;
 			m_ui.set_ui_state(UI_STATE_DEFAULT);
 			m_sensor.set_dpi(m_config.dpi);
@@ -465,9 +471,11 @@ void app::on_btn_scroll_clicked()
 		{
 			set_app_state(APP_STATE_LOCK_BUTTONS);
 		}
+		oled_timer_stop();
 	} else
 	{
 		m_buttons = 0;
+		oled_timer_reset();
 		set_app_state(APP_STATE_DEFAULT);
 		m_sensor.set_dpi(m_config.dpi);
 		send_report();
@@ -616,6 +624,14 @@ void app::loop()
 
 			case app_event_btn_scroll_state_changed:
 				on_btn_scroll_state_changed(static_cast<button_state_t>(event_data.data));
+				break;
+
+			case app_event_oled_power_off:
+				m_ui.power_off();
+				break;
+
+			case app_event_oled_power_on:
+				m_ui.power_on();
 				break;
 
 			default:

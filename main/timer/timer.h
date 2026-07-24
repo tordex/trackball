@@ -71,8 +71,6 @@ public:
 		if(m_timer)
 		{
 			xTimerStop(m_timer, 0);
-			xTimerDelete(m_timer, 0);
-			m_timer = nullptr;
 		}
 	}
 };

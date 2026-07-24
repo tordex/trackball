@@ -59,7 +59,9 @@ enum app_event_t
 	app_event_btn_mode_clicked,
 	app_event_btn_mode_hold_down,
 	app_event_btn_scroll_clicked,
-	app_event_btn_scroll_state_changed
+	app_event_btn_scroll_state_changed,
+	app_event_oled_power_off,
+	app_event_oled_power_on,
 };
 
 struct app_event_data_t
@@ -98,6 +100,7 @@ private:
 
 	timer m_connection_state_timer{"connection_state"};
 	timer m_suspend_timer{"suspend"};
+	timer m_oled_timer{"oled"};
 public:
 	app();
 	~app() = default;
@@ -145,5 +148,23 @@ private:
 	uint8_t get_report_buttons() const
 	{
 		return m_app_state == APP_STATE_LOCK_BUTTONS ? m_locked_buttons : m_buttons;
+	}
+
+	void oled_timer_stop()
+	{
+		m_oled_timer.stop();
+		m_ui.power_on();
+	}
+
+	void oled_timer_start()
+	{
+		m_oled_timer.start(10000, false, [this]() { send_event(app_event_oled_power_off); });
+		m_ui.power_on();
+	}
+
+	void oled_timer_reset()
+	{
+		m_oled_timer.reset();
+		m_ui.power_on();
 	}
 };

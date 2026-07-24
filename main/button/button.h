@@ -4,6 +4,7 @@
 #include "freertos/FreeRTOS.h"
 #include "driver/gpio.h"
 #include <functional>
+#include "driver/rtc_io.h"
 
 enum class button_state_t
 {
@@ -97,6 +98,11 @@ public:
 		{
 			xQueueSend(m_buttons_queue, &btn_event, 0);
 		}
+	}
+
+	void enter_deep_sleep()
+	{
+		rtc_gpio_isolate(m_pin);
 	}
 
 private:

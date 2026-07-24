@@ -23,6 +23,11 @@ button::button(gpio_num_t pin, int debounce_ms /* = 10 */, int click_ms /* = 100
 	m_click_ms(click_ms),
 	m_hold_down_ms(hold_down_ms)
 {
+	if(rtc_gpio_is_valid_gpio(m_pin))
+	{
+		rtc_gpio_deinit(m_pin);
+	}
+
 	gpio_config_t io_conf = {};
 	io_conf.pin_bit_mask  = (1ULL << m_pin);
 	io_conf.mode		  = GPIO_MODE_INPUT;
