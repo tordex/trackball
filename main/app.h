@@ -42,7 +42,8 @@ struct app_config
 	uint8_t	 btn3_func							  = BTN_FNC_MIDDLE;
 	uint8_t	 scroll_sensitivity					  = 100;
 	uint32_t deep_sleep_timeout_ms				  = 60000; // 1 minute
-	uint16_t dpi								  = 600;
+	uint32_t oled_timeout_ms				      = 0;
+	uint16_t dpi							      = 600;
 	uint16_t scroll_dpi							  = 600;
 	sensor_mode_t sensor_mode				      = SENSOR_MODE_HIGH_PERFORMANCE;
 	uint8_t	 scroll_mode						  = SCROLL_MODE_ENABLE_HSCROLL | SCROLL_MODE_ENABLE_VSCROLL;
@@ -121,7 +122,7 @@ public:
 private:
 	struct persisted_app_config_t
 	{
-		uint32_t   version = 1;
+		uint32_t   version = 2;
 		app_config config{};
 	};
 
@@ -152,19 +153,28 @@ private:
 
 	void oled_timer_stop()
 	{
-		m_oled_timer.stop();
-		m_ui.power_on();
+		if(m_config.oled_timeout_ms > 0)
+		{
+			m_oled_timer.stop();
+			m_ui.power_on();
+		}
 	}
 
 	void oled_timer_start()
 	{
-		m_oled_timer.start(10000, false, [this]() { send_event(app_event_oled_power_off); });
-		m_ui.power_on();
+		if(m_config.oled_timeout_ms > 0)
+		{
+			m_oled_timer.start(m_config.oled_timeout_ms, false, [this]() { send_event(app_event_oled_power_off); });
+			m_ui.power_on();
+		}
 	}
 
 	void oled_timer_reset()
 	{
-		m_oled_timer.reset();
-		m_ui.power_on();
+		if(m_config.oled_timeout_ms > 0)
+		{
+			m_oled_timer.reset();
+			m_ui.power_on();
+		}
 	}
 };
