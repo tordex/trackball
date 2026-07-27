@@ -23,6 +23,7 @@ private:
 	int						m_buffer[BUFFER_SIZE] = {};
 	int						m_buffer_count		  = 0;
 	int						m_last_voltage		  = 0;
+	int					m_last_level		  = -1;
 	timer					m_timer				  = {"battery_state"};
 	callback_t				m_callback;
 public:
@@ -43,7 +44,7 @@ public:
 	void	  get_state(int& voltage, int& level)
 	{
 		voltage = m_last_voltage;
-		level	= _get_charge_level(m_last_voltage);
+		level	= (m_last_level >= 0) ? m_last_level : _get_charge_level(m_last_voltage);
 	}
 
 private:

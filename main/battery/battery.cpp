@@ -3,8 +3,15 @@
 #include "esp_log.h"
 #include "esp_err.h"
 #include "esp_timer.h"
+#include <algorithm>
+#include <array>
 
-static int battery_levels[] = {
+namespace
+{
+constexpr int kVoltageDividerRatio = 2;
+constexpr int kLevelHysteresisMv   = 10;
+
+constexpr std::array<int, 101> battery_levels = {
 	3200, // 0%
 	3250, // 1%
 	3300, // 2%
@@ -108,6 +115,45 @@ static int battery_levels[] = {
 	4200, // 100%
 };
 
+int apply_level_hysteresis(int voltage, int last_level, int suggested_level)
+{
+	if(last_level < 0)
+	{
+		return std::clamp(suggested_level, 0, 100);
+	}
+
+	int level = std::clamp(last_level, 0, 100);
+	if(suggested_level > level)
+	{
+		while(level < suggested_level)
+		{
+			const int next_level = level + 1;
+			if(voltage >= (battery_levels[next_level] + kLevelHysteresisMv))
+			{
+				level = next_level;
+			} else
+			{
+				break;
+			}
+		}
+	} else if(suggested_level < level)
+	{
+		while(level > suggested_level)
+		{
+			if(voltage < (battery_levels[level] - kLevelHysteresisMv))
+			{
+				level--;
+			} else
+			{
+				break;
+			}
+		}
+	}
+
+	return level;
+}
+} // namespace
+
 battery::~battery()
 {
 	deinit();
@@ -115,32 +161,38 @@ battery::~battery()
 
 void battery::on_timer()
 {
+	int voltage = 0;
+	if(read_voltage(voltage) != ESP_OK)
+	{
+		return;
+	}
+
+	m_buffer[m_buffer_count++] = voltage;
 	if(m_buffer_count < BUFFER_SIZE)
 	{
-		int voltage = 0;
-		if(read_voltage(voltage) == ESP_OK)
-		{
-			m_buffer[m_buffer_count++] = voltage;
-		}
-	} else
-	{
-		// Calculate average
-		int sum = 0;
-		for(int i = 0; i < BUFFER_SIZE; i++)
-		{
-			sum += m_buffer[i];
-		}
-		int avg = sum / BUFFER_SIZE;
-		if(m_last_voltage != avg)
-		{
-			m_last_voltage = avg;
-			if(m_callback)
-			{
-				m_callback(m_last_voltage, _get_charge_level(m_last_voltage));
-			}
-		}
-		m_buffer_count = 0;
+		return;
 	}
+
+	// Calculate average as soon as the buffer is full (no extra 1-second delay).
+	int64_t sum = 0;
+	for(size_t i = 0; i < BUFFER_SIZE; i++)
+	{
+		sum += m_buffer[i];
+	}
+
+	int avg = static_cast<int>(sum / static_cast<int64_t>(BUFFER_SIZE));
+	if(m_last_voltage != avg)
+	{
+		m_last_voltage = avg;
+		const int interpolated_level = _get_charge_level(m_last_voltage);
+		const int stable_level		  = apply_level_hysteresis(m_last_voltage, m_last_level, interpolated_level);
+		m_last_level					  = stable_level;
+		if(m_callback)
+		{
+			m_callback(m_last_voltage, stable_level);
+		}
+	}
+	m_buffer_count = 0;
 }
 
 esp_err_t battery::init()
@@ -193,9 +245,11 @@ esp_err_t battery::init()
 	}
 
 	// report initial state
+	const int interpolated_level = _get_charge_level(m_last_voltage);
+	m_last_level					  = apply_level_hysteresis(m_last_voltage, m_last_level, interpolated_level);
 	if(m_callback)
 	{
-		m_callback(m_last_voltage, _get_charge_level(m_last_voltage));
+		m_callback(m_last_voltage, m_last_level);
 	}
 
 	// Start battery check timer
@@ -208,6 +262,8 @@ esp_err_t battery::init()
 
 esp_err_t battery::deinit()
 {
+	m_timer.stop();
+
 	if(m_adc_cali_handle)
 	{
 		adc_cali_delete_scheme_curve_fitting(m_adc_cali_handle);
@@ -218,7 +274,10 @@ esp_err_t battery::deinit()
 		adc_oneshot_del_unit(m_adc_handle);
 		m_adc_handle = nullptr;
 	}
-	m_timer.stop();
+
+	m_last_level  = -1;
+	m_last_voltage = 0;
+	m_buffer_count = 0;
 
 	return ESP_OK;
 }
@@ -243,7 +302,7 @@ esp_err_t battery::read_voltage(int& voltage)
 		ret			   = adc_cali_raw_to_voltage(m_adc_cali_handle, raw, &voltage_mv);
 		if(ret == ESP_OK)
 		{
-			voltage = voltage_mv * 2; // voltage divider 1:2
+			voltage = voltage_mv * kVoltageDividerRatio; // voltage divider 1:2
 			return ESP_OK;
 		}
 	}
@@ -253,38 +312,37 @@ esp_err_t battery::read_voltage(int& voltage)
 	// Vref = 1100mV, max ADC value = 4095
 	// Voltage range = Vref * (1 + attenuation) = 1100mV * (1 + 3.548) ≈ 4903mV
 	// voltage = raw / 4095 * 4903
-	voltage = static_cast<int>((static_cast<uint64_t>(raw) * 4903) / 4095) * 2; // voltage divider 1:2
+	voltage = static_cast<int>((static_cast<uint64_t>(raw) * 4903) / 4095) * kVoltageDividerRatio; // voltage divider 1:2
 	return ESP_OK;
 }
 
 int battery::_get_charge_level(int voltage)
 {
-	int idx	 = 50;
-	int prev = 0;
-	int half = 0;
-	if(voltage >= 4200)
-	{
-		return 100;
-	}
-	if(voltage <= 3200)
+	if(voltage <= battery_levels.front())
 	{
 		return 0;
 	}
-	while(true)
+	if(voltage >= battery_levels.back())
 	{
-		half = abs(idx - prev) / 2;
-		prev = idx;
-		if(voltage >= battery_levels[idx])
-		{
-			idx = idx + half;
-		} else
-		{
-			idx = idx - half;
-		}
-		if(prev == idx)
-		{
-			break;
-		}
+		return 100;
 	}
-	return idx;
+
+	// Interpolate between adjacent 1% thresholds and round to nearest integer percent.
+	auto it = std::upper_bound(battery_levels.begin(), battery_levels.end(), voltage);
+	const int upper_idx = static_cast<int>(std::distance(battery_levels.begin(), it));
+	const int lower_idx = upper_idx - 1;
+
+	const int lower_mv = battery_levels[lower_idx];
+	const int upper_mv = battery_levels[upper_idx];
+	const int span_mv  = upper_mv - lower_mv;
+	if(span_mv <= 0)
+	{
+		return lower_idx;
+	}
+
+	const int64_t num	 = static_cast<int64_t>(voltage - lower_mv) * 100;
+	const int frac_x100 = static_cast<int>((num + (span_mv / 2)) / span_mv); // 0..100 within this 1% step
+
+	const int level = lower_idx + ((frac_x100 >= 50) ? 1 : 0);
+	return std::clamp(level, 0, 100);
 }
