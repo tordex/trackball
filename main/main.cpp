@@ -19,23 +19,23 @@ app* g_app = nullptr;
 
 void hid_on_connection_changed()
 {
-	g_app->send_event(app_event_update_connection_state);
+    g_app->send_event(app_event_update_connection_state);
 }
 
 static void app_task(void* pvParameters)
 {
-	g_app = new app();
-	g_app->init();
-	g_app->loop();
+    g_app = new app();
+    g_app->init();
+    g_app->loop();
 }
 
 extern "C" void app_main(void)
 {
-	esp_log_level_set("NimBLE", ESP_LOG_WARN);
-	// esp_log_level_set(HID_DEMO_TAG, ESP_LOG_MAX);
-	// esp_log_level_set("BLE_HID_MOUSE", ESP_LOG_MAX);
+    esp_log_level_set("NimBLE", ESP_LOG_WARN);
+    // esp_log_level_set(HID_DEMO_TAG, ESP_LOG_MAX);
+    // esp_log_level_set("BLE_HID_MOUSE", ESP_LOG_MAX);
 
-	gpio_install_isr_service(0);
+    gpio_install_isr_service(0);
 
-	xTaskCreatePinnedToCore(&app_task, "app", 4096, NULL, 5, NULL, 0);
+    xTaskCreatePinnedToCore(&app_task, "app", 4096, NULL, 5, NULL, 0);
 }
