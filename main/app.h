@@ -121,9 +121,11 @@ class app
     }
 
   private:
+    constexpr static uint32_t k_nvs_storage_version = 2;
+
     struct persisted_app_config_t
     {
-        uint32_t   version = 2;
+        uint32_t   version = k_nvs_storage_version;
         app_config config{};
     };
 

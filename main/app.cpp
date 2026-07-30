@@ -174,7 +174,7 @@ bool app::load_config_from_nvs()
         return false;
     }
 
-    if(persisted.version != 1)
+    if(persisted.version != k_nvs_storage_version)
     {
         ESP_LOGW("APP", "Stored config version mismatch (%u), using defaults", persisted.version);
         return false;
