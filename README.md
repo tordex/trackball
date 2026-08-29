@@ -78,6 +78,7 @@ idf.py -p <PORT> monitor
 ### DPI Preset
 
 - Click `CFG` to cycle DPI presets.
+- Hold `CFG` for one second to forget all saved Bluetooth pairings.
 
 ### Scroll Mode and Hi-Res
 

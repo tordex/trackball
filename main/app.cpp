@@ -11,6 +11,7 @@
 
 extern "C" void ble_init();
 extern "C" void ble_deinit();
+extern "C" int  ble_forget_bonds();
 
 app::app() {}
 
@@ -112,6 +113,7 @@ void app::init()
     m_btn_mode->set_cb_on_click([this]() { send_event(app_event_btn_mode_clicked); });
     m_btn_mode->set_cb_on_hold_down([this]() { send_event(app_event_btn_mode_hold_down); });
     m_btn_cfg->set_cb_on_click([this]() { send_event(app_event_btn_cfg_clicked); });
+    m_btn_cfg->set_cb_on_hold_down([this]() { send_event(app_event_forget_bonds); });
     m_btn_scroll->set_cb_on_state_changed(
         [this](button_state_t state) { send_event(app_event_btn_scroll_state_changed, static_cast<uint32_t>(state)); });
     m_btn_scroll->set_cb_on_click([this]() { send_event(app_event_btn_scroll_clicked); });
@@ -380,6 +382,13 @@ void app::on_btn_cfg_clicked()
     m_ui.set_dpi(m_config.dpi);
 }
 
+void app::on_forget_bonds()
+{
+    on_activity_detected();
+    oled_timer_reset();
+    ble_forget_bonds();
+}
+
 void app::on_btn_mode_clicked()
 {
     on_activity_detected();
@@ -610,6 +619,10 @@ void app::loop()
 
             case app_event_btn_cfg_clicked:
                 on_btn_cfg_clicked();
+                break;
+
+            case app_event_forget_bonds:
+                on_forget_bonds();
                 break;
 
             case app_event_btn_mode_clicked:

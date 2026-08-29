@@ -57,6 +57,7 @@ enum app_event_t
     app_event_battery_state_changed,
     app_event_sleep,
     app_event_btn_cfg_clicked,
+    app_event_forget_bonds,
     app_event_btn_mode_clicked,
     app_event_btn_mode_hold_down,
     app_event_btn_scroll_clicked,
@@ -138,6 +139,7 @@ class app
     void configure_deep_sleep_wakeup_sources();
     void sensor_motion_callback(int16_t dx, int16_t dy);
     void on_btn_cfg_clicked();
+    void on_forget_bonds();
     void on_btn_mode_clicked();
     void on_btn_mode_hold_down();
     void on_btn_scroll_state_changed(button_state_t state);

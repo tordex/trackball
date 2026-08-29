@@ -9,6 +9,7 @@
 #include "esp_mac.h"
 #include "gatt_svr.h"
 #include "hid_func.h"
+#include "sdkconfig.h"
 
 #define MAC2STR_REV(a) (a)[5], (a)[4], (a)[3], (a)[2], (a)[1], (a)[0]
 
@@ -357,6 +358,33 @@ void ble_suspend()
 void ble_resume()
 {
     ble_init();
+}
+
+int ble_forget_bonds()
+{
+    ble_addr_t peer_id_addrs[CONFIG_BT_NIMBLE_MAX_BONDS];
+    int        num_peers = 0;
+    int        rc        = ble_store_util_bonded_peers(peer_id_addrs, &num_peers, CONFIG_BT_NIMBLE_MAX_BONDS);
+    if(rc == 0)
+    {
+        for(int i = 0; i < num_peers; i++)
+        {
+            rc = ble_store_util_delete_peer(&peer_id_addrs[i]);
+            if(rc != 0)
+            {
+                break;
+            }
+        }
+    }
+
+    if(rc != 0)
+    {
+        ESP_LOGE(tag, "Failed to forget BLE bonds: %d", rc);
+    } else
+    {
+        ESP_LOGI(tag, "Forgot all BLE bonds");
+    }
+    return rc;
 }
 
 void ble_deinit()
