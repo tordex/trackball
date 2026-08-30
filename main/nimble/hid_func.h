@@ -9,6 +9,7 @@ extern "C"
 {
 #endif
 
+    void hid_init();
     void hid_clean_vars(struct ble_gap_conn_desc* desc);
     void hid_set_disconnected();
     bool hid_get_connected();

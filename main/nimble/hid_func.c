@@ -63,18 +63,24 @@ static struct hid_notify_data
 static struct hid_device_data
 {
     /* Mutex semaphore for access to this struct */
-    SemaphoreHandle_t semaphore;
-    bool              suspended_state;
-    bool              report_mode_boot;
-    bool              connected;
-    uint16_t          conn_handle;
+    bool     suspended_state;
+    bool     report_mode_boot;
+    bool     connected;
+    uint16_t conn_handle;
 } My_hid_dev = {
-    .semaphore        = 0,
     .connected        = false,
     .suspended_state  = false,
     .report_mode_boot = false,
     .conn_handle      = 0,
 };
+
+static SemaphoreHandle_t g_dev_semaphore = 0;
+
+void hid_init()
+{
+    g_dev_semaphore = xSemaphoreCreateMutex();
+    memset(&My_hid_dev, 0, sizeof(struct hid_device_data));
+}
 
 /* mark report for indicate/notify when central subscribes to service charachetric with report */
 void hid_set_notify(uint16_t attr_handle, uint8_t cur_notify, uint8_t cur_indicate)
@@ -108,12 +114,12 @@ void hid_set_notify(uint16_t attr_handle, uint8_t cur_notify, uint8_t cur_indica
 /* lock report buffers with mutex semaphore */
 static int lock_hid_data()
 {
-    if(!My_hid_dev.semaphore)
+    if(!g_dev_semaphore)
     {
         ESP_LOGW(tag, "%s semaphore is NULL", __FUNCTION__);
         return 1;
     }
-    if(xSemaphoreTake(My_hid_dev.semaphore, pdMS_TO_TICKS(HID_DEV_BUF_MUTEX_WAIT)) == pdTRUE)
+    if(xSemaphoreTake(g_dev_semaphore, pdMS_TO_TICKS(HID_DEV_BUF_MUTEX_WAIT)) == pdTRUE)
     {
         return 0;
     } else
@@ -127,12 +133,12 @@ static int lock_hid_data()
 /* unlock report buffers locked with mutex semaphore */
 static int unlock_hid_data()
 {
-    if(!My_hid_dev.semaphore)
+    if(!g_dev_semaphore)
     {
         ESP_LOGW(tag, "%s semaphore is NULL", __FUNCTION__);
         return 1;
     }
-    if(xSemaphoreGive(My_hid_dev.semaphore) == pdTRUE)
+    if(xSemaphoreGive(g_dev_semaphore) == pdTRUE)
     {
         return 0;
     }
@@ -142,14 +148,7 @@ static int unlock_hid_data()
 /* zero all fields on new connection */
 void hid_clean_vars(struct ble_gap_conn_desc* desc)
 {
-    // save semaphore for new connection use
-    SemaphoreHandle_t semaphore_saved = My_hid_dev.semaphore;
-    int               rc              = -1;
-
-    if(semaphore_saved)
-    {
-        rc = lock_hid_data();
-    }
+    lock_hid_data();
 
     memset(&My_hid_dev, 0, sizeof(struct hid_device_data));
 
@@ -164,22 +163,10 @@ void hid_clean_vars(struct ble_gap_conn_desc* desc)
         }
     }
 
-    if(semaphore_saved)
-    {
-        My_hid_dev.semaphore = semaphore_saved;
-    } else
-    {
-        My_hid_dev.semaphore = xSemaphoreCreateMutex();
-        assert(My_hid_dev.semaphore != NULL);
-    }
-
     My_hid_dev.conn_handle = desc->conn_handle;
     My_hid_dev.connected   = true;
 
-    if(!rc)
-    {
-        unlock_hid_data();
-    }
+    unlock_hid_data();
 
     hid_on_connection_changed();
 }
@@ -251,14 +238,9 @@ int hid_read_buffer(struct os_mbuf* buf, int handle_num)
         }
     }
 
-    if(rep_idx != -1 && lock_hid_data() == 0)
+    if(rep_idx != -1)
     {
         rc = os_mbuf_append(buf, Notify_data_reports[rep_idx].buffer, Notify_data_reports[rep_idx].buffer_size);
-        unlock_hid_data();
-
-        // ESP_LOGI("", "%s read data: %s", __FUNCTION__,
-        //     print_buf(Notify_data_reports[rep_idx].buffer,
-        //         Notify_data_reports[rep_idx].buffer_size));
     } else
     {
         if(rep_idx == -1)
@@ -285,7 +267,7 @@ int hid_write_buffer(struct os_mbuf* buf, int handle_num)
             break;
         }
     }
-    if(rep_idx != -1 && lock_hid_data() == 0)
+    if(rep_idx != -1)
     {
         if(OS_MBUF_PKTLEN(buf) == Notify_data_reports[rep_idx].buffer_size)
         {
@@ -294,7 +276,6 @@ int hid_write_buffer(struct os_mbuf* buf, int handle_num)
         {
             rc = 4;
         }
-        unlock_hid_data();
         if(rc == 0)
         {
             /* Feature report mapping is Notify_data_reports index 2 in this implementation. */
@@ -329,10 +310,9 @@ int hid_write_buffer(struct os_mbuf* buf, int handle_num)
 int hid_send_report(int report_handle_num)
 {
     /* check semaphore, connection and suspend state */
-    if(!My_hid_dev.semaphore || !My_hid_dev.connected || My_hid_dev.suspended_state)
+    if(!My_hid_dev.connected || My_hid_dev.suspended_state)
     {
-        ESP_LOGI(tag, "%s semaphore %p %d %d", __FUNCTION__, My_hid_dev.semaphore, My_hid_dev.connected,
-                 My_hid_dev.suspended_state);
+        ESP_LOGI(tag, "%s %d %d", __FUNCTION__, My_hid_dev.connected, My_hid_dev.suspended_state);
         return 1;
     }
 
@@ -368,19 +348,15 @@ int hid_send_report(int report_handle_num)
     {
     case SEND_METHOD_CUSTOM:
         {
-            if(lock_hid_data() == 0)
-            {
-                struct os_mbuf* om = ble_hs_mbuf_from_flat(Notify_data_reports[report_idx].buffer,
-                                                           Notify_data_reports[report_idx].buffer_size);
-                unlock_hid_data();
+            struct os_mbuf* om = ble_hs_mbuf_from_flat(Notify_data_reports[report_idx].buffer,
+                                                       Notify_data_reports[report_idx].buffer_size);
 
-                if(Notify_data_reports[report_idx].can_indicate)
-                {
-                    rc = ble_gattc_indicate_custom(My_hid_dev.conn_handle, send_handle, om);
-                } else if(Notify_data_reports[report_idx].can_notify)
-                {
-                    rc = ble_gattc_notify_custom(My_hid_dev.conn_handle, send_handle, om);
-                }
+            if(Notify_data_reports[report_idx].can_indicate)
+            {
+                rc = ble_gattc_indicate_custom(My_hid_dev.conn_handle, send_handle, om);
+            } else if(Notify_data_reports[report_idx].can_notify)
+            {
+                rc = ble_gattc_notify_custom(My_hid_dev.conn_handle, send_handle, om);
             }
             break;
         }
@@ -423,9 +399,8 @@ int hid_battery_level_set(uint8_t level)
         {
             Battery_level[0] = level;
         }
-        unlock_hid_data();
-
         rc = hid_send_report(HANDLE_BATTERY_LEVEL);
+        unlock_hid_data();
     } else
     {
         return -2;
@@ -456,9 +431,11 @@ int hid_mouse_send_report(uint8_t mouse_button, int16_t mickeys_x, int16_t micke
         Mouse_buffer[7] = (uint8_t) (ac_pan & 0xFF);        // AC Pan Low
         Mouse_buffer[8] = (uint8_t) ((ac_pan >> 8) & 0xFF); // AC Pan High
 
+        int ret = hid_send_report(HANDLE_HID_MOUSE_REPORT);
+
         unlock_hid_data();
 
-        return hid_send_report(HANDLE_HID_MOUSE_REPORT);
+        return ret;
     }
 
     return 1;

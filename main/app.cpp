@@ -17,6 +17,8 @@ app::app() {}
 
 void app::init()
 {
+    hid_init();
+
     m_events_queue = xQueueCreate(32, sizeof(app_event_data_t));
 
     /* Initialize NVS — it is used to store PHY calibration data and Nimble bonding data */
