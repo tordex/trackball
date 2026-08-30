@@ -70,7 +70,6 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_
     devcfg.mode                          = 3;        // SPI Mode 3 (CPOL=1, CPHA=1)
     devcfg.spics_io_num                  = -1;       // Manually control CS
     devcfg.queue_size                    = 7;
-    devcfg.flags                         = SPI_DEVICE_NO_DUMMY;
 
     esp_err_t ret = spi_bus_add_device(host_id, &devcfg, &m_spi);
     if(ret != ESP_OK)
