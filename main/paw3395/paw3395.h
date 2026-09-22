@@ -37,6 +37,7 @@ class paw3395
     SemaphoreHandle_t   m_motion_semaphore   = nullptr;
     TaskHandle_t        m_motion_task        = nullptr;
     OnMotionCallback_t  m_on_motion_callback = nullptr;
+    bool                m_stop               = false;
 
   public:
     paw3395() {}
@@ -51,11 +52,13 @@ class paw3395
 
     void set_dpi(uint16_t CPI_Num);
     bool read_motion(int16_t* dx, int16_t* dy);
+    bool read_motion_burst(int16_t* dx, int16_t* dy);
     void motion_burst(motion_burst_data* values);
     void office_mode();
     void gaming_mode();
     void low_power_mode();
     void high_performance_mode();
+    void stop_motion_task();
 
   private:
     void cs_high()

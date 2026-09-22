@@ -22,13 +22,6 @@ void hid_on_connection_changed()
     g_app->send_event(app_event_update_connection_state);
 }
 
-static void app_task(void* pvParameters)
-{
-    g_app = new app();
-    g_app->init();
-    g_app->loop();
-}
-
 extern "C" void app_main(void)
 {
     esp_log_level_set("NimBLE", ESP_LOG_WARN);
@@ -37,5 +30,7 @@ extern "C" void app_main(void)
 
     gpio_install_isr_service(0);
 
-    xTaskCreatePinnedToCore(&app_task, "app", 4096, NULL, 5, NULL, 0);
+    g_app = new app();
+    g_app->init();
+    g_app->loop();
 }

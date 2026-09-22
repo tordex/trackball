@@ -76,7 +76,7 @@ void app::init()
     if(sensor_ret != ESP_OK)
     {
         ESP_LOGE("APP", "PAW3395 init failed: %d", sensor_ret);
-        return;
+        abort();
     }
 
     apply_config();
@@ -190,6 +190,8 @@ bool app::load_config_from_nvs()
 
 void app::deinit()
 {
+    m_sensor.stop_motion_task();
+
     // Deinitialize Bluetooth
     ble_deinit();
 
@@ -275,7 +277,6 @@ void app::enter_deep_sleep()
         return;
     }
     deinit();
-    m_sensor.low_power_mode();
 
     m_btn_1->enter_deep_sleep();
     m_btn_2->enter_deep_sleep();

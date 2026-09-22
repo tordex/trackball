@@ -51,8 +51,6 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_
     m_pin_motion         = pin_motion;
     m_on_motion_callback = on_motion;
 
-    init_motion_pin();
-
     // Configure NCS pin
     gpio_config_t io_conf = {};
     io_conf.pin_bit_mask  = (1ULL << m_pin_ncs);
@@ -79,46 +77,67 @@ esp_err_t paw3395::init(spi_host_device_t host_id, gpio_num_t ncs_pin, gpio_num_
     }
 
     cs_high();
-    uint8_t product_id = 0;
-    bool    init_ok    = false;
+    uint8_t product_id     = 0;
+    uint8_t inv_product_id = 0;
+    bool    init_ok        = false;
     for(int attempt = 1; attempt <= PAW3395_INIT_RETRIES; ++attempt)
     {
         Power_up_sequence();
-        product_id = read_register(0x00);
-        if(product_id != PAW3395_INVALID_PRODUCT_ID_0 && product_id != PAW3395_INVALID_PRODUCT_ID_1)
+        product_id     = read_register(0x00);
+        inv_product_id = read_register(0x5F);
+
+        if(product_id != PAW3395_INVALID_PRODUCT_ID_0 && product_id != PAW3395_INVALID_PRODUCT_ID_1 &&
+           (product_id ^ inv_product_id) == 0xFF)
         {
             init_ok = true;
             break;
         }
 
-        ESP_LOGW(m_log_tag, "Invalid Product ID 0x%02X (attempt %d/%d)", product_id, attempt, PAW3395_INIT_RETRIES);
+        ESP_LOGW(m_log_tag, "Invalid Product ID 0x%02X/0x%02X (attempt %d/%d)", product_id, inv_product_id, attempt,
+                 PAW3395_INIT_RETRIES);
         delay_ms(10);
     }
 
     if(!init_ok)
     {
-        ESP_LOGE(m_log_tag, "PAW3395 init failed, invalid Product ID after retries: 0x%02X", product_id);
+        ESP_LOGE(m_log_tag, "PAW3395 init failed, invalid Product ID after retries: 0x%02X/0x%02X", product_id,
+                 inv_product_id);
         return ESP_ERR_INVALID_RESPONSE;
     }
 
     ESP_LOGI(m_log_tag, "PAW3395 Product ID: 0x%02X", product_id);
 
     // Enable RIPPLE CONTROL
-    write_register(PAW3395_REG_RIPPLE_CONTROL, 0x80);
+    write_register(PAW3395_REG_RIPPLE_CONTROL, 0x90);
 
     // Lift cut 2mm
     set_lift_cut(2);
 
-    if(xTaskCreate((TaskFunction_t) motion_task, "paw3395_motion", 4096, this, 5, &m_motion_task) != pdPASS)
+    // Read and clear any pending motion data before starting normal operation.
+    motion_burst_data data;
+    for(int i = 0; i < 5; i++)
     {
-        ESP_LOGE(m_log_tag, "Failed to create motion task");
-        return ESP_FAIL;
+        motion_burst(&data);
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+
+    ret = init_motion_pin();
+    if(ret != ESP_OK)
+    {
+        ESP_LOGE(m_log_tag, "Failed to initialize motion pin");
+        return ret;
     }
 
     // If MOTION is already low, no negedge will occur. Trigger one read cycle now.
     if(gpio_get_level(m_pin_motion) == 0)
     {
-        xSemaphoreGive(m_motion_semaphore);
+        ESP_LOGE(m_log_tag, "MOTION pin is already low");
+    }
+
+    if(xTaskCreate((TaskFunction_t) motion_task, "paw3395_motion", 4096, this, 5, &m_motion_task) != pdPASS)
+    {
+        ESP_LOGE(m_log_tag, "Failed to create motion task");
+        return ESP_FAIL;
     }
 
     return ESP_OK;
@@ -191,19 +210,27 @@ esp_err_t paw3395::init_motion_pin()
     return ESP_OK;
 }
 
+void paw3395::stop_motion_task()
+{
+    m_stop = true;
+    vTaskDelay(pdMS_TO_TICKS(7)); // Give some time for the motion task to exit
+    gpio_intr_disable(m_pin_motion);
+    gpio_isr_handler_remove(m_pin_motion);
+}
+
 void paw3395::motion_task(void* param)
 {
     auto pThis = static_cast<paw3395*>(param);
-    while(true)
+    while(!pThis->m_stop)
     {
-        if(pThis->m_motion_semaphore && xSemaphoreTake(pThis->m_motion_semaphore, portMAX_DELAY))
+        if(pThis->m_motion_semaphore && xSemaphoreTake(pThis->m_motion_semaphore, pdMS_TO_TICKS(5)))
         {
             int16_t dx      = 0;
             int16_t dy      = 0;
             int     counter = 0;
             while(counter < 5)
             {
-                if(pThis->read_motion(&dx, &dy))
+                if(pThis->read_motion_burst(&dx, &dy))
                 {
                     if(pThis->m_on_motion_callback)
                     {
@@ -217,6 +244,7 @@ void paw3395::motion_task(void* param)
             }
         }
     }
+    vTaskDelete(NULL);
 }
 
 void paw3395::delay_125_ns(uint8_t nns)
@@ -284,7 +312,7 @@ void paw3395::Power_up_sequence()
     delay_125_ns(PAW3395_TIMINGS_NCS_SCLK);
 
     write_register(PAW3395_REG_POWERUPRESET, PAW3395_POWERUPRESET_POWERON);
-    delay_ms(6);
+    delay_ms(10);
     Power_Up_Initializaton_Register_Setting();
     cs_high();
     delay_125_ns(PAW3395_TIMINGS_NCS_SCLK);
@@ -315,6 +343,21 @@ bool paw3395::read_motion(int16_t* dx, int16_t* dy)
 
         *dx = (int16_t) (x_l | (x_h << 8));
         *dy = (int16_t) (y_l | (y_h << 8));
+        return *dx != 0 || *dy != 0;
+    }
+    *dx = 0;
+    *dy = 0;
+    return false;
+}
+
+bool paw3395::read_motion_burst(int16_t* dx, int16_t* dy)
+{
+    motion_burst_data burst = {};
+    motion_burst(&burst);
+    if((burst.motion & 0x80) != 0)
+    {
+        *dx = (int16_t) (burst.delta_x_l | (burst.delta_x_h << 8));
+        *dy = (int16_t) (burst.delta_y_l | (burst.delta_y_h << 8));
         return *dx != 0 || *dy != 0;
     }
     *dx = 0;
@@ -543,6 +586,7 @@ void paw3395::office_mode()
     write_register(0x79, 0x0F);
     uint8_t tmp = read_register(0x40);
     tmp         = (tmp & 0xFC) | 0x02;
+    write_register(0x40, tmp);
 }
 
 void paw3395::gaming_mode()
@@ -593,7 +637,8 @@ void paw3395::low_power_mode()
     write_register(0x78, 0x01);
     write_register(0x79, 0x9C);
     uint8_t tmp = read_register(0x40);
-    tmp         = (tmp & 0xFC) | 0x02;
+    tmp         = (tmp & 0xFC) | 0x01;
+    write_register(0x40, tmp);
 }
 
 void paw3395::high_performance_mode()
@@ -621,4 +666,5 @@ void paw3395::high_performance_mode()
     write_register(0x79, 0x9C);
     uint8_t tmp = read_register(0x40);
     tmp         = (tmp & 0xFC) | 0x00;
+    write_register(0x40, tmp);
 }
