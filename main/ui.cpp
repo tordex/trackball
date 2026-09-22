@@ -89,6 +89,11 @@ void trackball_ui::set_battery_level(int bat_mV, int level)
 
 void trackball_ui::draw_status_line()
 {
+    if(m_ui_state == UI_STATE_GO_SLEEP)
+    {
+        return;
+    }
+
     ssd1306_clear_square(&m_oled_data, 0, 0, 128, 15);
     if(m_connected)
     {
@@ -172,6 +177,9 @@ void trackball_ui::draw_ui_state()
     case UI_STATE_LOCK_BUTTONS:
         draw_ui_lock_buttons();
         break;
+    case UI_STATE_GO_SLEEP:
+        draw_ui_go_sleep();
+        break;
     default:
         break;
     }
@@ -251,4 +259,10 @@ void trackball_ui::draw_ui_lock_buttons()
     {
         ssd1306_draw_string(&m_oled_data, 0, top + i * 16, 2, strs[i]);
     }
+}
+
+void trackball_ui::draw_ui_go_sleep()
+{
+    ssd1306_clear(&m_oled_data);
+    ssd1306_draw_string(&m_oled_data, 0, 32, 2, "GO SLEEP");
 }

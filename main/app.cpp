@@ -190,6 +190,8 @@ bool app::load_config_from_nvs()
 
 void app::deinit()
 {
+    m_ui.set_ui_state(UI_STATE_GO_SLEEP);
+
     m_sensor.stop_motion_task();
 
     // Deinitialize Bluetooth

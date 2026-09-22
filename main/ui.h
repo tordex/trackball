@@ -11,6 +11,7 @@ enum ui_state_t
     UI_STATE_DEFAULT,
     UI_STATE_SCROLL_LOCK,
     UI_STATE_LOCK_BUTTONS,
+    UI_STATE_GO_SLEEP,
 };
 
 class trackball_ui
@@ -73,6 +74,7 @@ class trackball_ui
     void draw_ui_default();
     void draw_ui_scroll_lock();
     void draw_ui_lock_buttons();
+    void draw_ui_go_sleep();
 };
 
 #endif // _UI_H
