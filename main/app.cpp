@@ -299,8 +299,8 @@ void app::sensor_motion_callback(int16_t dx, int16_t dy)
     on_activity_detected();
 
     bool           b_send_report = false;
-    int8_t         wheel         = 0;
-    int8_t         ac_pan        = 0;
+    int16_t        wheel         = 0;
+    int16_t        ac_pan        = 0;
     static int32_t wheel_buffer  = 0;
     static int32_t ac_pan_buffer = 0;
     if(m_app_state == APP_STATE_SCROLL_HOLD || m_app_state == APP_STATE_SCROLL_LOCK)
