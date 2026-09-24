@@ -347,11 +347,23 @@ void app::sensor_motion_callback(int16_t dx, int16_t dy)
         {
             if(m_config.scroll_mode & SCROLL_MODE_ENABLE_VSCROLL)
             {
-                wheel = std::clamp(dy * 2, -32768, 32767);
+                if(dy > 0)
+                {
+                    wheel = dy + 1;
+                } else if(dy < 0)
+                {
+                    wheel = dy - 1;
+                }
             }
             if(m_config.scroll_mode & SCROLL_MODE_ENABLE_HSCROLL)
             {
-                ac_pan = std::clamp(dx * 2, -32768, 32767);
+                if(dx > 0)
+                {
+                    ac_pan = dx + 1;
+                } else if(dx < 0)
+                {
+                    ac_pan = dx - 1;
+                }
             }
             b_send_report = wheel != 0 || ac_pan != 0;
         } else
@@ -652,6 +664,7 @@ void app::open_menu()
     m_app_state = APP_STATE_MENU;
     create_menu();
     m_menu_changed = false;
+    m_sensor.set_dpi(m_config.scroll_dpi);
     m_ui.start_menu(m_menu.get());
 }
 
@@ -677,6 +690,9 @@ void app::on_menu_back()
             save_config_to_nvs();
             apply_config();
             m_menu_changed = false;
+        } else
+        {
+            m_sensor.set_dpi(m_config.dpi);
         }
         m_app_state = APP_STATE_DEFAULT;
         m_ui.set_ui_state(UI_STATE_DEFAULT);
