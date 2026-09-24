@@ -1,6 +1,8 @@
 #include "ui.h"
 #include <cstring>
 #include <cstdio>
+#include <vector>
+#include <string>
 
 // Include bitmap definitions
 #include "images/images.c"
@@ -56,6 +58,7 @@ void trackball_ui::set_ui_state(ui_state_t state)
     if(m_ui_state != state)
     {
         m_ui_state = state;
+        draw_status_line();
         draw_ui_state();
     }
 }
@@ -87,9 +90,64 @@ void trackball_ui::set_battery_level(int bat_mV, int level)
     }
 }
 
+void trackball_ui::start_menu(ui_menu::submenu* menu)
+{
+    m_current_menu = menu;
+    m_ui_state     = UI_STATE_MENU;
+    draw_ui_menu();
+    ssd1306_show(&m_oled_data);
+}
+
+void trackball_ui::on_scroll(int16_t wheel)
+{
+    if(m_ui_state != UI_STATE_MENU || !m_current_menu)
+    {
+        return;
+    }
+    int step = 0;
+    if(wheel > 0)
+    {
+        step = 1;
+    } else if(wheel < 0)
+    {
+        step = -1;
+    }
+    if(step)
+    {
+        if(m_current_menu->on_scroll(step))
+        {
+            draw_ui_menu();
+            ssd1306_show(&m_oled_data);
+        }
+    }
+}
+
+void trackball_ui::on_menu_confirm()
+{
+    if(!m_current_menu)
+    {
+        return;
+    }
+    m_current_menu->on_confirm(true);
+    draw_ui_menu();
+    ssd1306_show(&m_oled_data);
+}
+
+bool trackball_ui::on_menu_back()
+{
+    if(!m_current_menu)
+    {
+        return false;
+    }
+    auto ret = m_current_menu->on_back();
+    draw_ui_menu();
+    ssd1306_show(&m_oled_data);
+    return ret;
+}
+
 void trackball_ui::draw_status_line()
 {
-    if(m_ui_state == UI_STATE_GO_SLEEP)
+    if(m_ui_state == UI_STATE_GO_SLEEP || m_ui_state == UI_STATE_MENU)
     {
         return;
     }
@@ -180,6 +238,9 @@ void trackball_ui::draw_ui_state()
     case UI_STATE_GO_SLEEP:
         draw_ui_go_sleep();
         break;
+    case UI_STATE_MENU:
+        draw_ui_menu();
+        break;
     default:
         break;
     }
@@ -265,4 +326,13 @@ void trackball_ui::draw_ui_go_sleep()
 {
     ssd1306_clear(&m_oled_data);
     ssd1306_draw_string(&m_oled_data, 0, 32, 2, "GO SLEEP");
+}
+
+void trackball_ui::draw_ui_menu()
+{
+    if(!m_current_menu)
+    {
+        return;
+    }
+    m_current_menu->on_draw_focused(&m_oled_data, 0, 0);
 }

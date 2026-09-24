@@ -19,7 +19,7 @@ void app::init()
 {
     hid_init();
 
-    m_events_queue = xQueueCreate(32, sizeof(app_event_data_t));
+    m_events_queue = xQueueCreate(128, sizeof(app_event_data_t));
 
     /* Initialize NVS — it is used to store PHY calibration data and Nimble bonding data */
     esp_err_t ret = nvs_flash_init();
@@ -81,13 +81,7 @@ void app::init()
 
     apply_config();
 
-    if(m_config.deep_sleep_timeout_ms > 0)
-    {
-        m_suspend_timer.start(m_config.deep_sleep_timeout_ms, false, [this]() { send_event(app_event_sleep); });
-    }
-
     m_connection_state_timer.start(1000, true, [this]() { send_event(app_event_update_connection_state); });
-    oled_timer_start();
 
     m_battery.set_callback([this](int voltage, int level) { send_event(app_event_battery_state_changed); });
     ESP_ERROR_CHECK(m_battery.init());
@@ -100,22 +94,47 @@ void app::init()
     m_btn_cfg    = new button(PIN_BTN_CFG);    // Configuration button
 
     // Configure button callbacks
+    m_btn_1->set_cb_on_click([this]() {
+        on_activity_detected();
+        if(m_app_state == APP_STATE_MENU)
+        {
+            send_event(app_event_menu_confirm);
+        }
+    });
     m_btn_1->set_cb_on_state_changed([this](button_state_t state) {
         on_activity_detected();
-        apply_button_function(state, static_cast<button_function_t>(m_config.btn1_func));
+        if(m_app_state != APP_STATE_MENU)
+        {
+            apply_button_function(state, static_cast<button_function_t>(m_config.btn1_func));
+        }
+    });
+
+    m_btn_2->set_cb_on_click([this]() {
+        on_activity_detected();
+        if(m_app_state == APP_STATE_MENU)
+        {
+            send_event(app_event_menu_back);
+        }
     });
     m_btn_2->set_cb_on_state_changed([this](button_state_t state) {
         on_activity_detected();
-        apply_button_function(state, static_cast<button_function_t>(m_config.btn2_func));
+        if(m_app_state != APP_STATE_MENU)
+        {
+            apply_button_function(state, static_cast<button_function_t>(m_config.btn2_func));
+        }
     });
+
     m_btn_3->set_cb_on_state_changed([this](button_state_t state) {
         on_activity_detected();
         apply_button_function(state, static_cast<button_function_t>(m_config.btn3_func));
     });
+
     m_btn_mode->set_cb_on_click([this]() { send_event(app_event_btn_mode_clicked); });
     m_btn_mode->set_cb_on_hold_down([this]() { send_event(app_event_btn_mode_hold_down); });
+
     m_btn_cfg->set_cb_on_click([this]() { send_event(app_event_btn_cfg_clicked); });
-    m_btn_cfg->set_cb_on_hold_down([this]() { send_event(app_event_forget_bonds); });
+    m_btn_cfg->set_cb_on_hold_down([this]() { send_event(app_event_open_menu); });
+
     m_btn_scroll->set_cb_on_state_changed(
         [this](button_state_t state) { send_event(app_event_btn_scroll_state_changed, static_cast<uint32_t>(state)); });
     m_btn_scroll->set_cb_on_click([this]() { send_event(app_event_btn_scroll_clicked); });
@@ -221,7 +240,26 @@ void app::on_connection_changed()
 
 void app::apply_config()
 {
+    if(m_config.deep_sleep_timeout_ms > 0)
+    {
+        m_suspend_timer.start(m_config.deep_sleep_timeout_ms, false, [this]() { send_event(app_event_sleep); });
+    } else
+    {
+        m_suspend_timer.stop();
+    }
+
+    if(m_config.oled_timeout_ms > 0)
+    {
+        oled_timer_start();
+    } else
+    {
+        m_oled_timer.stop();
+        m_ui.power_on();
+    }
+
     m_sensor.set_dpi(m_config.dpi);
+    m_ui.set_dpi(m_config.dpi);
+
     switch(m_config.sensor_mode)
     {
     case SENSOR_MODE_LOW_POWER:
@@ -303,9 +341,9 @@ void app::sensor_motion_callback(int16_t dx, int16_t dy)
     int16_t        ac_pan        = 0;
     static int32_t wheel_buffer  = 0;
     static int32_t ac_pan_buffer = 0;
-    if(m_app_state == APP_STATE_SCROLL_HOLD || m_app_state == APP_STATE_SCROLL_LOCK)
+    if(m_app_state == APP_STATE_SCROLL_HOLD || m_app_state == APP_STATE_SCROLL_LOCK || m_app_state == APP_STATE_MENU)
     {
-        if(m_config.enable_high_res_scroll)
+        if(m_config.enable_high_res_scroll && m_app_state != APP_STATE_MENU)
         {
             if(m_config.scroll_mode & SCROLL_MODE_ENABLE_VSCROLL)
             {
@@ -318,11 +356,11 @@ void app::sensor_motion_callback(int16_t dx, int16_t dy)
             b_send_report = wheel != 0 || ac_pan != 0;
         } else
         {
-            if(m_config.scroll_mode & SCROLL_MODE_ENABLE_VSCROLL)
+            if((m_config.scroll_mode & SCROLL_MODE_ENABLE_VSCROLL) || m_app_state == APP_STATE_MENU)
             {
                 wheel_buffer += dy;
             }
-            if(m_config.scroll_mode & SCROLL_MODE_ENABLE_HSCROLL)
+            if((m_config.scroll_mode & SCROLL_MODE_ENABLE_HSCROLL) && m_app_state != APP_STATE_MENU)
             {
                 ac_pan_buffer += dx;
             }
@@ -359,7 +397,13 @@ void app::sensor_motion_callback(int16_t dx, int16_t dy)
     }
     if(b_send_report)
     {
-        send_report(-dx, dy, wheel, ac_pan);
+        if(wheel != 0 || ac_pan != 0)
+        {
+            send_event(app_event_scroll, (static_cast<uint32_t>(wheel) << 16) | (static_cast<uint16_t>(ac_pan)));
+        } else
+        {
+            send_report(-dx, dy);
+        }
         vTaskDelay(pdMS_TO_TICKS(2));
     } else
     {
@@ -504,6 +548,17 @@ void app::on_update_connection_state()
     m_ui.set_connection_state(connected, rssi, rssi_ok);
 }
 
+void app::on_scroll(int16_t wheel, int16_t ac_pan)
+{
+    if(m_app_state != APP_STATE_MENU)
+    {
+        send_report(0, 0, wheel, ac_pan);
+    } else
+    {
+        m_ui.on_scroll(wheel);
+    }
+}
+
 void app::on_battery_state_changed(int voltage, int level)
 {
     m_ui.set_battery_level(voltage, level);
@@ -592,6 +647,270 @@ void app::send_report(int16_t dx, int16_t dy, int16_t wheel, int16_t ac_pan)
     hid_mouse_send_report(get_report_buttons(), dx, dy, wheel, ac_pan);
 }
 
+void app::open_menu()
+{
+    m_app_state = APP_STATE_MENU;
+    create_menu();
+    m_menu_changed = false;
+    m_ui.start_menu(m_menu.get());
+}
+
+void app::on_menu_confirm()
+{
+    if(m_app_state != APP_STATE_MENU)
+    {
+        return;
+    }
+    m_ui.on_menu_confirm();
+}
+
+void app::on_menu_back()
+{
+    if(m_app_state != APP_STATE_MENU)
+    {
+        return;
+    }
+    if(m_ui.on_menu_back())
+    {
+        if(m_menu_changed)
+        {
+            save_config_to_nvs();
+            apply_config();
+            m_menu_changed = false;
+        }
+        m_app_state = APP_STATE_DEFAULT;
+        m_ui.set_ui_state(UI_STATE_DEFAULT);
+    }
+}
+
+void app::create_menu()
+{
+    if(m_menu)
+    {
+        return;
+    }
+    // clang-format off
+    m_menu = std::make_unique<ui_menu::submenu>(
+        "Main Menu",
+        std::vector<ui_menu::submenu::child_obj>{
+            ui_menu::submenu(
+                "DPI", {
+                    ui_menu::value_editor(
+                        "MOVING",
+                        " (dpi)",
+                        m_config.dpi,
+                        50,
+                        26000,
+                        50,
+                        /* cb_on_confirm */ [this](int value) { m_config.dpi = value; m_menu_changed = true != value; }
+                    ),
+                    ui_menu::value_editor(
+                        "SCROLLING",
+                        " (dpi)",
+                        m_config.scroll_dpi,
+                        50,
+                        26000,
+                        50,
+                        /* cb_on_confirm */ [this](int value) { m_config.scroll_dpi = value; m_menu_changed = true; }
+                    ),
+                    ui_menu::value_editor(
+                        "SCRL SENS",
+                        " (point)",
+                        m_config.scroll_sensitivity,
+                        10,
+                        300,
+                        5,
+                        /* cb_on_confirm */ [this](int value) { m_config.scroll_sensitivity = value; m_menu_changed = true; }
+                    ),
+                    ui_menu::submenu(
+                        "DPI PRESET", {
+                            ui_menu::value_editor(
+                                "PRESET:1",
+                                " (dpi)",
+                                m_config.predefined_dpi[0],
+                                50,
+                                26000,
+                                50,
+                                /* cb_on_confirm */ [this](int value) { m_config.predefined_dpi[0] = value; m_menu_changed = true; },
+                                /* cb_get_text */   [this]() { return "1:" + std::to_string(m_config.predefined_dpi[0]); }
+                            ),
+                            ui_menu::value_editor(
+                                "PRESET:2",
+                                " (dpi)",
+                                m_config.predefined_dpi[1],
+                                50,
+                                26000,
+                                50,
+                                /* cb_on_confirm */ [this](int value) { m_config.predefined_dpi[1] = value; m_menu_changed = true; },
+                                /* cb_get_text */   [this]() { return "2:" + std::to_string(m_config.predefined_dpi[1]); }
+                            ),
+                            ui_menu::value_editor(
+                                "PRESET:3",
+                                " (dpi)",
+                                m_config.predefined_dpi[2],
+                                50,
+                                26000,
+                                50,
+                                /* cb_on_confirm */ [this](int value) { m_config.predefined_dpi[2] = value; m_menu_changed = true; },
+                                /* cb_get_text */   [this]() { return "3:" + std::to_string(m_config.predefined_dpi[2]); }
+                            ),
+                            ui_menu::value_editor(
+                                "PRESET:4",
+                                " (dpi)",
+                                m_config.predefined_dpi[3],
+                                50,
+                                26000,
+                                50,
+                                /* cb_on_confirm */ [this](int value) { m_config.predefined_dpi[3] = value; m_menu_changed = true; },
+                                /* cb_get_text */   [this]() { return "4:" + std::to_string(m_config.predefined_dpi[3]); }
+                            )
+                        }
+                    ),
+                }
+            ),
+            ui_menu::submenu(
+                "TIMERS", {
+                    ui_menu::value_editor(
+                        "SLEEP",
+                        " (seconds)",
+                        m_config.deep_sleep_timeout_ms / 1000,
+                        0,
+                        600,
+                        10,
+                        [this](int value) { m_config.deep_sleep_timeout_ms = value * 1000; m_menu_changed = true; }
+                    ),
+                    ui_menu::value_editor(
+                        "OLED",
+                        " (seconds)",
+                        m_config.oled_timeout_ms / 1000,
+                        0,
+                        600,
+                        10,
+                        [this](int value) { m_config.oled_timeout_ms = value * 1000; m_menu_changed = true; }
+                    ),
+                }
+            ),
+            ui_menu::submenu(
+                "MODE", {
+                    ui_menu::menu_item(
+                        /* text */          "HI PERF",
+                        /* cb_on_confirm */ [this]() { m_config.sensor_mode = SENSOR_MODE_HIGH_PERFORMANCE; m_menu_changed = true; },
+                        /* cb_get_marker */ [this]() { return m_config.sensor_mode == SENSOR_MODE_HIGH_PERFORMANCE ? "*" : ""; }
+                    ),
+                    ui_menu::menu_item(
+                        /* text */          "LOW PWR",
+                        /* cb_on_confirm */ [this]() { m_config.sensor_mode = SENSOR_MODE_LOW_POWER; m_menu_changed = true; },
+                        /* cb_get_marker */ [this]() { return m_config.sensor_mode == SENSOR_MODE_LOW_POWER ? "*" : ""; }
+                    ),
+                    ui_menu::menu_item(
+                        /* text */          "OFFICE ",
+                        /* cb_on_confirm */ [this]() { m_config.sensor_mode = SENSOR_MODE_OFFICE; m_menu_changed = true; },
+                        /* cb_get_marker */ [this]() { return m_config.sensor_mode == SENSOR_MODE_OFFICE ? "*" : ""; }
+                    ),
+                    ui_menu::menu_item(
+                        /* text */          "GAMING ",
+                        /* cb_on_confirm */ [this]() { m_config.sensor_mode = SENSOR_MODE_GAMING; m_menu_changed = true; },
+                        /* cb_get_marker */ [this]() { return m_config.sensor_mode == SENSOR_MODE_GAMING ? "*" : ""; }
+                    ),
+                }
+            ),
+            ui_menu::submenu(
+                "BUTTONS", {
+                    ui_menu::submenu(
+                        [this]() { return "B:1-" + btn_func_to_string(m_config.btn1_func); },
+                        {
+                            ui_menu::menu_item(
+                                /* text */          "NONE",
+                                /* cb_on_confirm */ [this]() { m_config.btn1_func = BTN_FNC_NONE; m_menu_changed = true; },
+                                /* cb_get_marker */ [this]() { return m_config.btn1_func == BTN_FNC_NONE ? "*" : ""; }
+                            ),
+                            ui_menu::menu_item(
+                                /* text */          "LEFT",
+                                /* cb_on_confirm */ [this]() { m_config.btn1_func = BTN_FNC_LEFT; m_menu_changed = true; },
+                                /* cb_get_marker */ [this]() { return m_config.btn1_func == BTN_FNC_LEFT ? "*" : ""; }
+                            ),
+                            ui_menu::menu_item(
+                                /* text */          "RIGHT",
+                                /* cb_on_confirm */ [this]() { m_config.btn1_func = BTN_FNC_RIGHT; m_menu_changed = true; },
+                                /* cb_get_marker */ [this]() { return m_config.btn1_func == BTN_FNC_RIGHT ? "*" : ""; }
+                            ),
+                            ui_menu::menu_item(
+                                /* text */          "MIDDLE",
+                                /* cb_on_confirm */ [this]() { m_config.btn1_func = BTN_FNC_MIDDLE; m_menu_changed = true; },
+                                /* cb_get_marker */ [this]() { return m_config.btn1_func == BTN_FNC_MIDDLE ? "*" : ""; }
+                            ),
+                        }
+                    ),
+                    ui_menu::submenu(
+                        [this]() { return "B:2-" + btn_func_to_string(m_config.btn2_func); },
+                        {
+                            ui_menu::menu_item(
+                                /* text */          "NONE",
+                                /* cb_on_confirm */ [this]() { m_config.btn2_func = BTN_FNC_NONE; m_menu_changed = true; },
+                                /* cb_get_marker */ [this]() { return m_config.btn2_func == BTN_FNC_NONE ? "*" : ""; }
+                            ),
+                            ui_menu::menu_item(
+                                /* text */          "LEFT",
+                                /* cb_on_confirm */ [this]() { m_config.btn2_func = BTN_FNC_LEFT; m_menu_changed = true; },
+                                /* cb_get_marker */ [this]() { return m_config.btn2_func == BTN_FNC_LEFT ? "*" : ""; }
+                            ),
+                            ui_menu::menu_item(
+                                /* text */          "RIGHT",
+                                /* cb_on_confirm */ [this]() { m_config.btn2_func = BTN_FNC_RIGHT; m_menu_changed = true; },
+                                /* cb_get_marker */ [this]() { return m_config.btn2_func == BTN_FNC_RIGHT ? "*" : ""; }
+                            ),
+                            ui_menu::menu_item(
+                                /* text */          "MIDDLE",
+                                /* cb_on_confirm */ [this]() { m_config.btn2_func = BTN_FNC_MIDDLE; m_menu_changed = true; },
+                                /* cb_get_marker */ [this]() { return m_config.btn2_func == BTN_FNC_MIDDLE ? "*" : ""; }
+                            ),
+                        }
+                    ),
+                    ui_menu::submenu(
+                        [this]() { return "B:3-" + btn_func_to_string(m_config.btn3_func); },
+                        {
+                            ui_menu::menu_item(
+                                /* text */          "NONE",
+                                /* cb_on_confirm */ [this]() { m_config.btn3_func = BTN_FNC_NONE; m_menu_changed = true; },
+                                /* cb_get_marker */ [this]() { return m_config.btn3_func == BTN_FNC_NONE ? "*" : ""; }
+                            ),
+                            ui_menu::menu_item(
+                                /* text */          "LEFT",
+                                /* cb_on_confirm */ [this]() { m_config.btn3_func = BTN_FNC_LEFT; m_menu_changed = true; },
+                                /* cb_get_marker */ [this]() { return m_config.btn3_func == BTN_FNC_LEFT ? "*" : ""; }
+                            ),
+                            ui_menu::menu_item(
+                                /* text */          "RIGHT",
+                                /* cb_on_confirm */ [this]() { m_config.btn3_func = BTN_FNC_RIGHT; m_menu_changed = true; },
+                                /* cb_get_marker */ [this]() { return m_config.btn3_func == BTN_FNC_RIGHT ? "*" : ""; }
+                            ),
+                            ui_menu::menu_item(
+                                /* text */          "MIDDLE",
+                                /* cb_on_confirm */ [this]() { m_config.btn3_func = BTN_FNC_MIDDLE; m_menu_changed = true; },
+                                /* cb_get_marker */ [this]() { return m_config.btn3_func == BTN_FNC_MIDDLE ? "*" : ""; }
+                            ),
+                        }
+                    ),
+                }
+            ),
+            ui_menu::submenu(
+                "RESET BT", {
+                    ui_menu::menu_item(
+                        /* text */          "NO",
+                        /* cb_on_confirm */ [this]() {}
+                    ),
+                    ui_menu::menu_item(
+                        /* text */          "YES",
+                        /* cb_on_confirm */ [this]() { send_event(app_event_forget_bonds); }
+                    ),
+                }
+            ),
+        }
+    );
+
+    // clang-format on
+}
+
 void app::loop()
 {
     app_event_data_t event_data;
@@ -652,6 +971,23 @@ void app::loop()
 
             case app_event_oled_power_on:
                 m_ui.power_on();
+                break;
+
+            case app_event_scroll:
+                on_scroll(static_cast<int16_t>((event_data.data & 0xFFFF0000) >> 16),
+                          static_cast<int16_t>(event_data.data & 0x0000FFFF));
+                break;
+
+            case app_event_open_menu:
+                open_menu();
+                break;
+
+            case app_event_menu_confirm:
+                on_menu_confirm();
+                break;
+
+            case app_event_menu_back:
+                on_menu_back();
                 break;
 
             default:

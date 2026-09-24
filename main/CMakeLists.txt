@@ -10,6 +10,7 @@ idf_component_register(SRCS "app.cpp"
                             "ui.cpp"
                             "oled/ssd1306.c"
                             "battery/battery.cpp"
+                            "menu.cpp"
 
                     PRIV_REQUIRES bt nvs_flash esp_driver_gpio driver esp_driver_i2c esp_adc
                     INCLUDE_DIRS "." "paw3395" "nimble" "button" "oled" "battery" "timer")

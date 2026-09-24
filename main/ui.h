@@ -1,10 +1,13 @@
 #ifndef _UI_H
 #define _UI_H
 
+#include <vector>
+#include <string>
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "oled/ssd1306.h"
 #include "types.h"
+#include "menu.h"
 
 enum ui_state_t
 {
@@ -12,6 +15,7 @@ enum ui_state_t
     UI_STATE_SCROLL_LOCK,
     UI_STATE_LOCK_BUTTONS,
     UI_STATE_GO_SLEEP,
+    UI_STATE_MENU,
 };
 
 class trackball_ui
@@ -28,6 +32,8 @@ class trackball_ui
     int        m_bat_level      = 0;
     int        m_dpi            = 600;
     uint8_t    m_scroll_mode    = SCROLL_MODE_HIGH_RES | SCROLL_MODE_ENABLE_HSCROLL | SCROLL_MODE_ENABLE_VSCROLL;
+
+    ui_menu::submenu* m_current_menu = nullptr;
 
   public:
     trackball_ui() = default;
@@ -68,6 +74,11 @@ class trackball_ui
         }
     }
 
+    void start_menu(ui_menu::submenu* menu);
+    void on_scroll(int16_t wheel);
+    void on_menu_confirm();
+    bool on_menu_back();
+
   private:
     void draw_status_line();
     void draw_ui_state();
@@ -75,6 +86,7 @@ class trackball_ui
     void draw_ui_scroll_lock();
     void draw_ui_lock_buttons();
     void draw_ui_go_sleep();
+    void draw_ui_menu();
 };
 
 #endif // _UI_H

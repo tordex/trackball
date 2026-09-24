@@ -9,6 +9,7 @@
 #include "sdkconfig.h"
 #include "nvs_flash.h"
 #include "types.h"
+#include "menu.h"
 
 enum app_state_t
 {
@@ -16,6 +17,7 @@ enum app_state_t
     APP_STATE_SCROLL_HOLD,  // Scroll button is held. Send scroll events on motion.
     APP_STATE_SCROLL_LOCK,  // Scroll lock active (after scroll button click). Send scroll events on motion.
     APP_STATE_LOCK_BUTTONS, // Pressed buttons are locked (after config button click)
+    APP_STATE_MENU,
 };
 
 enum button_function_t
@@ -25,6 +27,23 @@ enum button_function_t
     BTN_FNC_RIGHT,
     BTN_FNC_MIDDLE,
 };
+
+inline std::string btn_func_to_string(uint8_t btn_func)
+{
+    switch(btn_func)
+    {
+    case BTN_FNC_NONE:
+        return "NONE";
+    case BTN_FNC_LEFT:
+        return "LEFT";
+    case BTN_FNC_RIGHT:
+        return "RIGHT";
+    case BTN_FNC_MIDDLE:
+        return "MIDDLE";
+    default:
+        return "UNKNOWN";
+    }
+}
 
 enum sensor_mode_t : uint8_t
 {
@@ -64,6 +83,10 @@ enum app_event_t
     app_event_btn_scroll_state_changed,
     app_event_oled_power_off,
     app_event_oled_power_on,
+    app_event_scroll,
+    app_event_open_menu,
+    app_event_menu_confirm,
+    app_event_menu_back,
 };
 
 struct app_event_data_t
@@ -103,6 +126,10 @@ class app
     timer m_connection_state_timer{"connection_state"};
     timer m_suspend_timer{"suspend"};
     timer m_oled_timer{"oled"};
+
+    std::unique_ptr<ui_menu::submenu> m_menu;
+
+    bool m_menu_changed = false;
 
   public:
     app();
@@ -145,6 +172,7 @@ class app
     void on_btn_scroll_state_changed(button_state_t state);
     void on_btn_scroll_clicked();
     void on_update_connection_state();
+    void on_scroll(int16_t wheel, int16_t ac_pan);
     void on_battery_state_changed(int voltage, int level);
     void apply_button_function(button_state_t state, button_function_t func);
 
@@ -182,4 +210,10 @@ class app
             m_ui.power_on();
         }
     }
+
+    void open_menu();
+    void on_menu_confirm();
+    void on_menu_back();
+
+    void create_menu();
 };
